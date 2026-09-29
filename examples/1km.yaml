@@ -1,0 +1,37 @@
+# Simulation settings. Webbing names refer to webbings.yaml.
+plots: true        # open the force plot and the two RopePlayer windows
+gif: false           # write example.gif (leash fall animated above backup fall)
+
+L: 1000              # length of highline spot [m]
+N: 100               # number of discretization verticies
+T: 10                # length of simulation [s]
+tension_kN: 5.50     # standing tension (or pull_webbing, exactly one of the two)
+pull_side: right    # anchor side to pull from
+
+slackliner:
+  m: 89             # mass [kg]
+  l_leg: 1.1        # length from harness to feet [m]
+  l_leash: 1.3      # length of leash [m]
+  x_coor: 500        # x-coordinate of slackliner [m]
+
+segments:
+  - {main: y2k, backup: y2k, L_main: 50, L_backup: 53, break_mainline: true}
+  - {main: y2k, backup: y2k, L_main: 50, L_backup: 53, break_mainline: false}
+  - {main: y2k, backup: y2k, L_main: 50, L_backup: 53, break_mainline: false}
+  - {main: y2k, backup: y2k, L_main: 50, L_backup: 53, break_mainline: false}
+  - {main: y2k, backup: y2k, L_main: 50, L_backup: 53, break_mainline: false}
+  - {main: y2k, backup: y2k, L_main: 50, L_backup: 53, break_mainline: false}
+  - {main: y2k, backup: y2k, L_main: 50, L_backup: 53, break_mainline: false}
+  - {main: y2k, backup: y2k, L_main: 50, L_backup: 53, break_mainline: false}
+  - {main: y2k, backup: y2k, L_main: 50, L_backup: 53, break_mainline: false}
+  - {main: y2k, backup: y2k, L_main: 50, L_backup: 53, break_mainline: false}
+  - {main: y2k, backup: y2k, L_main: 50, L_backup: 53, break_mainline: false}
+  - {main: y2k, backup: y2k, L_main: 50, L_backup: 53, break_mainline: false}
+  - {main: y2k, backup: y2k, L_main: 50, L_backup: 53, break_mainline: false}
+  - {main: y2k, backup: y2k, L_main: 50, L_backup: 53, break_mainline: false}
+  - {main: y2k, backup: y2k, L_main: 50, L_backup: 53, break_mainline: false}
+  - {main: y2k, backup: y2k, L_main: 50, L_backup: 53, break_mainline: false}
+  - {main: y2k, backup: y2k, L_main: 50, L_backup: 53, break_mainline: false}
+  - {main: y2k, backup: y2k, L_main: 50, L_backup: 53, break_mainline: false}
+  - {main: y2k, backup: y2k, L_main: 50, L_backup: 53, break_mainline: false}
+  - {main: y2k, backup: y2k, L_main: 50, L_backup: 53, break_mainline: false}
