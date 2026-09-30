@@ -1,0 +1,3 @@
+# Test fixture: a small, fixed webbing catalogue. Do not edit without updating test_config.cpp.
+stretchy: {stretch_pct: 10.0, tension_kN: 5,  weight_g_m: 60}
+stiff:    {stretch_pct: 2.0,  tension_kN: 10, weight_g_m: 40}

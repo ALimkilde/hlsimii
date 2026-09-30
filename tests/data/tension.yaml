@@ -1,0 +1,20 @@
+# Test fixture: standing tension, three segments. Do not edit without updating test_config.cpp.
+plots: true
+gif: false
+
+L: 100
+N: 35
+T: 15
+tension_kN: 1.35
+pull_side: left
+
+slackliner:
+  m: 89
+  l_leg: 1.1
+  l_leash: 1.3
+  x_coor: 50
+
+segments:
+  - {main: stretchy, backup: stiff, L_main: 30, L_backup: 32, break_mainline: true}
+  - {main: stretchy, backup: stiff, L_main: 30, L_backup: 32, break_mainline: false}
+  - {main: stiff, backup: stretchy, L_main: 40, L_backup: 43}

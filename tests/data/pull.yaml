@@ -1,0 +1,17 @@
+# Test fixture: pull_webbing, one segment, default pull_side. Do not edit without updating test_config.cpp.
+plots: false
+gif: true
+
+L: 50
+N: 25
+T: 5
+pull_webbing: 1.5
+
+slackliner:
+  m: 75
+  l_leg: 1
+  l_leash: 1.2
+  x_coor: 25
+
+segments:
+  - {main: stiff, backup: stiff, L_main: 50, L_backup: 53}

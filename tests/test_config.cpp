@@ -56,7 +56,7 @@ slackliner:
   l_leash: 1
   x_coor: 5
 segments:
-  - {main: joker, backup: solid, L_main: 10, L_backup: 11}
+  - {main: stretchy, backup: stiff, L_main: 10, L_backup: 11}
 )";
 
 std::string replace(std::string s, const std::string& from, const std::string& to)
@@ -65,57 +65,73 @@ std::string replace(std::string s, const std::string& from, const std::string& t
     return s;
 }
 
+// Fixed test data lives in tests/data/; examples/ and data/ are free to edit.
 void test_webbings()
 {
-    const WebbingCatalog w = parse_webbings(read_file("data/webbings.yaml"));
-    CHECK(w.size() == 6);
-    CHECK(close(w.at("joker").stretch_pct, 3.6));
-    CHECK(close(w.at("hmpe").tension_kN, 10.0));
-    CHECK(close(w.at("nylove").weight_g_m, 62.0));
+    const WebbingCatalog w = parse_webbings(read_file("tests/data/webbings.yaml"));
+    CHECK(w.size() == 2);
+    CHECK(close(w.at("stretchy").stretch_pct, 10.0));
+    CHECK(close(w.at("stiff").tension_kN, 10.0));
+    CHECK(close(w.at("stiff").weight_g_m, 40.0));
 }
 
-void test_examples()
+void test_fixtures()
 {
-    const SimConfig ex = parse_config(read_file("examples/example.yaml"));
-    CHECK(ex.plots && !ex.gif);
-    CHECK(close(ex.L, 100.0));
-    CHECK(ex.N == 35);
-    CHECK(close(ex.T, 15.0));
-    CHECK(ex.tension_kN && close(*ex.tension_kN, 1.35));
-    CHECK(!ex.pull_webbing);
-    CHECK(ex.pull_side == "right");
-    CHECK(close(ex.slackliner.m, 89.0));
-    CHECK(close(ex.slackliner.x_coor, 50.0));
-    CHECK(ex.segments.size() == 3);
-    CHECK(ex.segments[0].break_mainline);
-    CHECK(!ex.segments[1].break_mainline);
-    CHECK(ex.segments[2].main == "joker" && ex.segments[2].backup == "solid");
-    CHECK(close(ex.segments[2].L_main, 40.0) && close(ex.segments[2].L_backup, 43.0));
+    const SimConfig t = parse_config(read_file("tests/data/tension.yaml"));
+    CHECK(t.plots && !t.gif);
+    CHECK(close(t.L, 100.0));
+    CHECK(t.N == 35);
+    CHECK(close(t.T, 15.0));
+    CHECK(t.tension_kN && close(*t.tension_kN, 1.35));
+    CHECK(!t.pull_webbing);
+    CHECK(t.pull_side == "left");
+    CHECK(close(t.slackliner.m, 89.0));
+    CHECK(close(t.slackliner.x_coor, 50.0));
+    CHECK(t.segments.size() == 3);
+    CHECK(t.segments[0].break_mainline);
+    CHECK(!t.segments[1].break_mainline);
+    CHECK(!t.segments[2].break_mainline); // omitted: defaults to false
+    CHECK(t.segments[2].main == "stiff" && t.segments[2].backup == "stretchy");
+    CHECK(close(t.segments[2].L_main, 40.0) && close(t.segments[2].L_backup, 43.0));
 
-    const SimConfig km = parse_config(read_file("examples/1km.yaml"));
-    CHECK(km.segments.size() == 20);
-    CHECK(km.N == 100);
+    const SimConfig p = parse_config(read_file("tests/data/pull.yaml"));
+    CHECK(!p.plots && p.gif);
+    CHECK(!p.tension_kN);
+    CHECK(p.pull_webbing && close(*p.pull_webbing, 1.5));
+    CHECK(p.pull_side == "right"); // omitted: default
+    CHECK(close(p.slackliner.m, 75.0));
+    CHECK(p.segments.size() == 1);
+}
 
-    const SimConfig ss = parse_config(read_file("examples/short_and_static.yaml"));
-    CHECK(!ss.tension_kN);
-    CHECK(ss.pull_webbing && close(*ss.pull_webbing, 1.0));
-    CHECK(!ss.plots && ss.gif);
-    CHECK(ss.segments.size() == 1);
+// The user-facing files must keep parsing, whatever values they hold
+void test_shipped_files_parse()
+{
+    const WebbingCatalog w = parse_webbings(read_file("data/webbings.yaml"));
+    CHECK(!w.empty());
+    for (const char* path : {"examples/example.yaml", "examples/1km.yaml", "examples/short_and_static.yaml"}) {
+        try {
+            build_line(parse_config(read_file(path)), w);
+        } catch (const std::exception& e) {
+            std::cerr << path << ": " << e.what() << "\n";
+            ++failures;
+        }
+    }
 }
 
 void test_build_line()
 {
-    const WebbingCatalog w = parse_webbings(read_file("data/webbings.yaml"));
-    const Line line = build_line(parse_config(read_file("examples/example.yaml")), w);
+    const WebbingCatalog w = parse_webbings(read_file("tests/data/webbings.yaml"));
+    const Line line = build_line(parse_config(read_file("tests/data/tension.yaml")), w);
     CHECK(line.num_segments() == 3);
     const Segment& s = line.segments()[0];
-    CHECK(close(s.ea_main, w.at("joker").ea()));
-    CHECK(close(s.ea_backup, w.at("solid").ea()));
-    CHECK(close(s.rho_main, w.at("joker").rho()));
-    CHECK(close(s.rho_backup, w.at("solid").rho()));
+    CHECK(close(s.ea_main, w.at("stretchy").ea()));
+    CHECK(close(s.ea_backup, w.at("stiff").ea()));
+    CHECK(close(s.rho_main, w.at("stretchy").rho()));
+    CHECK(close(s.rho_backup, w.at("stiff").rho()));
     CHECK(close(s.L_main, 30.0) && close(s.L_backup, 32.0));
 
     SimConfig cfg = parse_config(base_config);
+    CHECK(!throws([&] { build_line(cfg, w); }));
     cfg.segments[0].backup = "rope";
     CHECK(throws([&] { build_line(cfg, w); }));
 }
@@ -128,7 +144,7 @@ void test_validate()
     cfg.N = 5;
     cfg.T = 1.0;
     cfg.pull_webbing = 0.5;
-    cfg.segments.push_back({"joker", "solid", 10.0, 11.0, false});
+    cfg.segments.push_back({"stretchy", "stiff", 10.0, 11.0, false});
     validate(cfg);
 
     SimConfig both = cfg;
@@ -171,7 +187,8 @@ void test_yaml_errors()
 int main()
 {
     test_webbings();
-    test_examples();
+    test_fixtures();
+    test_shipped_files_parse();
     test_build_line();
     test_validate();
     test_yaml_errors();
