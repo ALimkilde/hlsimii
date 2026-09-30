@@ -1,4 +1,5 @@
 #include "physics.h"
+#include <algorithm>
 
 LineModel::LineModel(const DiscreteLine& line, Vec2 anchor_left, Vec2 anchor_right, const Params& p)
    : line_(std::move(line)),
@@ -9,9 +10,7 @@ LineModel::LineModel(const DiscreteLine& line, Vec2 anchor_left, Vec2 anchor_rig
 {
 }
 
-// Fills edge forces into Fe_
-template <bool WithVelocity> // Only add KV dampening if velocity is included
-const Vec2 LineModel::edge_force(Eigen::Index e, const Vec2& qa, const Vec2& qb)
+Vec2 LineModel::edge_force(Eigen::Index e, const Vec2& qa, const Vec2& qb) const
 {
       Vec2 dq = qb - qa;
       double len = dq.norm();  // Length of e
@@ -32,17 +31,17 @@ const Vec2 LineModel::edge_force(Eigen::Index e, const Vec2& qa, const Vec2& qb)
 }
 
 // Fills edge forces into Fe_
-template <bool WithVelocity> // Only add KV dampening if velocity is included
-void LineModel::edge_forces(Eigen::Ref<const Mat2X> q, Eigen::Ref<const Mat2X> v)
+void LineModel::edge_forces(Eigen::Ref<const Mat2X> q, Eigen::Ref<const Mat2X> v) const
 {
    const Eigen::Index num_edges = Fe_.cols();
 
-   // Edge e connects global nodes e and e+1; free node k is q.col(k-1).
-   Fe_.col(0) = edge_force<WithVelocity>(0, anchor_left_, q.col(0));
+   Fe_.col(0) = edge_force(0, anchor_left_, q.col(0));
 
    for (Eigen::Index e = 1; e < num_edges - 1; ++e)
-      Fe_.col(e) = edge_force<WithVelocity>(e, q.col(e - 1), q.col(e));
+      Fe_.col(e) = edge_force(e, q.col(e - 1), q.col(e));
 
-   Fe_.col(num_edges - 1) = edge_force<WithVelocity>(num_edges - 1, q.col(num_edges - 2), anchor_right_);
+   Fe_.col(num_edges - 1) = edge_force(num_edges - 1, q.col(num_edges - 2), anchor_right_);
 
 }
+
+
