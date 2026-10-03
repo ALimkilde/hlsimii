@@ -10,25 +10,29 @@ LineModel::LineModel(const DiscreteLine& line, Vec2 anchor_left, Vec2 anchor_rig
 {
 }
 
-Vec2 LineModel::edge_force(Eigen::Index e, const Vec2& qa, const Vec2& qb) const
-{
-      Vec2 dq = qb - qa;
-      double len = dq.norm();  // Length of e
-                               //
-      double stretch_main = len - line_.l_main[e];
-      double stretch_backup = len - line_.l_backup[e];
-
-      if (stretch_main > 0.0 || stretch_backup > 0.0){
-         Vec2 unit = dq/len; // Unit vector
-
-         return unit * ( line_.k_main[e] * std::max(stretch_main, 0.0)
-                        + line_.k_backup[e] * std::max(stretch_backup, 0.0) );
-      }
-      else {
-         return Vec2::Zero();
-      }
-
-}
+  Vec2 LineModel::edge_force(Eigen::Index e, const Vec2& qa, const Vec2& qb, Mat2* K) const
+  {
+     const Vec2 dq = qb - qa;
+     const double len = dq.norm();
+     const double s_main = len - line_.l_main[e];
+     const double s_backup = len - line_.l_backup[e];
+   
+     double T = 0.0, dT = 0.0;  // tension and dT/dlen
+     if (s_main > 0.0)   { T += line_.k_main[e]   * s_main;   dT += line_.k_main[e]; }
+     if (s_backup > 0.0) { T += line_.k_backup[e] * s_backup; dT += line_.k_backup[e]; }
+   
+     if (T == 0.0) {                 // slack edge
+        if (K) K->setZero();
+        return Vec2::Zero();
+     } 
+   
+     const Vec2 u = dq / len; // Unit vector
+     if (K) {
+        const Mat2 uuT = u * u.transpose();
+        *K = dT * uuT + (T / len) * (Mat2::Identity() - uuT);  // axial + geometric stiffness
+     }  
+     return T * u;
+  }
 
 // Fills edge forces into Fe_
 void LineModel::edge_forces(Eigen::Ref<const Mat2X> q, Eigen::Ref<const Mat2X> v) const

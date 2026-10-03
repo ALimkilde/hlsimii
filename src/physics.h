@@ -8,6 +8,7 @@
 using Vec2 = Eigen::Vector2d;
 using Vec = Eigen::VectorXd;
 using Mat2X = Eigen::Matrix2Xd;
+using Mat2 = Eigen::Matrix2d;
 
 struct Params {
    Vec2 gravity{0.0, -9.81};
@@ -31,7 +32,7 @@ class LineModel {
       void residual(const Vec& q, Vec& r) const;       // static equilibrium: r = F(q, 0), in force units
 
       // === Edge forces === //
-      Vec2 edge_force(Eigen::Index e, const Vec2& qa, const Vec2& qb) const; // Fills Fe_ 
+      Vec2 edge_force(Eigen::Index e, const Vec2& qa, const Vec2& qb, Mat2* K = nullptr) const; // Fills Fe_ 
                                                                        //
       void edge_forces(Eigen::Ref<const Mat2X> q, Eigen::Ref<const Mat2X> v) const; // Fills Fe_
                                                                                      //
