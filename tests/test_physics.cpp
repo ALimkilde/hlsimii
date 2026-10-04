@@ -198,6 +198,161 @@ void test_assemble()
     }
 }
 
+// Five edges with distinct stiffnesses and distinct node masses, so a shifted edge or mass index
+// changes the result. Rest lengths: main 1.0, backup 1.2.
+DiscreteLine five_edge_line()
+{
+    DiscreteLine d;
+    d.k_main = {100.0, 200.0, 300.0, 400.0, 500.0};
+    d.k_backup = {50.0, 60.0, 70.0, 80.0, 90.0};
+    d.l_main = {1.0, 1.0, 1.0, 1.0, 1.0};
+    d.l_backup = {1.2, 1.2, 1.2, 1.2, 1.2};
+    d.node_mass = {0.3, 1.1, 1.3, 1.7, 1.9, 0.7};
+    d.element_segment = {0, 0, 0, 0, 0};
+    return d;
+}
+
+// A zigzag through the plane with edge lengths 1.1, 0.9, 1.5, 1.3, 1.05, i.e.
+// main only, slack, main + backup, main + backup, main only. All lengths stay away from the kinks.
+struct Zigzag {
+    Vec2 left, right;
+    Mat2X q{2, 4};
+};
+
+Zigzag zigzag()
+{
+    const double len[5] = {1.1, 0.9, 1.5, 1.3, 1.05};
+    const double angle[5] = {0.3, -0.5, 0.1, 0.8, -0.2};   // edge directions [rad]
+
+    Zigzag z;
+    z.left = Vec2(0.2, -0.1);
+    Vec2 p = z.left;
+    for (int e = 0; e < 5; ++e) {
+        p += len[e] * Vec2(std::cos(angle[e]), std::sin(angle[e]));
+        if (e < 4) z.q.col(e) = p;
+    }
+    z.right = p;
+    return z;
+}
+
+// Fills every block with NaN, so a block that assemble forgets to write shows up in the check
+void poison(SymmBlockTriMat& K)
+{
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    for (int i = 0; i < K.num_blocks(); ++i) K.diag(i) = Mat2::Constant(nan);
+    for (int i = 0; i + 1 < K.num_blocks(); ++i) K.upper(i) = Mat2::Constant(nan);
+}
+
+// Finite-difference check of the assembled Jacobian K = dF/dq on the zigzag, with gravity on.
+// Each column j of the dense K is compared to the central difference of F when the flat
+// coordinate j of q is perturbed. The error should shrink like h^2.
+void test_assemble_jacobian()
+{
+    const Zigzag z = zigzag();
+    const LineModel m(five_edge_line(), z.left, z.right, Params{});
+    const Mat2X v = Mat2X::Zero(2, 4);
+    const Eigen::Index n = z.q.size();   // 8 coordinates, ordered [x0 y0 x1 y1 ...] like the dense K
+
+    SymmBlockTriMat K(4);
+    poison(K);
+    Mat2X F(2, 4);
+    m.assemble(z.q, v, F, &K);
+    const Mat J = K.to_dense();
+    CHECK(J.allFinite());
+
+    // Forces must not depend on whether the Jacobian was requested
+    Mat2X F_no_K(2, 4);
+    m.assemble(z.q, v, F_no_K);
+    CHECK(F_no_K == F);
+
+    std::cout << "assembled Jacobian FD check (zigzag, 4 free nodes)\n";
+    std::cout << "        h        max err    order\n";
+
+    double h = 1e-2;
+    double prev_err = 0.0, order = 0.0;
+    for (int step = 0; step < 5; ++step, h /= 2.0) {
+        Mat J_fd(n, n);
+        for (Eigen::Index j = 0; j < n; ++j) {
+            Mat2X qp = z.q, qm = z.q;
+            qp.data()[j] += h;
+            qm.data()[j] -= h;
+            Mat2X Fp(2, 4), Fm(2, 4);
+            m.assemble(qp, v, Fp);
+            m.assemble(qm, v, Fm);
+            J_fd.col(j) = Eigen::Map<const Vec>((Fp - Fm).eval().data(), n) / (2.0 * h);
+        }
+        const double err = (J_fd - J).cwiseAbs().maxCoeff();
+
+        std::printf("  %9.2e  %10.3e", h, err);
+        if (step > 0) {
+            order = std::log2(prev_err / err);
+            std::printf("  %6.3f", order);
+        }
+        std::printf("\n");
+        prev_err = err;
+    }
+    CHECK(std::abs(order - 2.0) < 0.1);
+}
+
+// With every edge slack the only force is gravity, so node i feels m_{i+1} * g.
+// The node masses differ, which catches an off-by-one in the mass index (including the last node).
+void test_assemble_gravity()
+{
+    Params p;
+    p.gravity = Vec2(0.0, -10.0);
+    const LineModel m(five_edge_line(), {0.0, 0.0}, {4.0, 0.0}, p);
+
+    Mat2X q(2, 4);
+    q << 0.8, 1.6, 2.4, 3.2,
+         0.0, 0.0, 0.0, 0.0;   // edges 0.8 long: all slack
+    const Mat2X v = Mat2X::Zero(2, 4);
+    Mat2X F(2, 4);
+    SymmBlockTriMat K(4);
+    poison(K);
+    m.assemble(q, v, F, &K);
+
+    CHECK(close(F.col(0), Vec2(0.0, -11.0)));
+    CHECK(close(F.col(1), Vec2(0.0, -13.0)));
+    CHECK(close(F.col(2), Vec2(0.0, -17.0)));
+    CHECK(close(F.col(3), Vec2(0.0, -19.0)));
+
+    // Slack everywhere: no stiffness
+    CHECK(K.to_dense().isZero());
+}
+
+// Smallest valid line: two edges and one free node, so the loop body never runs
+// and only the code after the loop fills F and K.
+void test_assemble_single_node()
+{
+    DiscreteLine d;
+    d.k_main = {100.0, 200.0};
+    d.k_backup = {50.0, 50.0};
+    d.l_main = {1.0, 1.0};
+    d.l_backup = {1.2, 1.2};
+    d.node_mass = {0.5, 1.0, 0.5};
+    d.element_segment = {0, 0};
+
+    Params p;
+    p.gravity = Vec2(0.0, -10.0);
+    const LineModel m(d, {0.0, 0.0}, {2.2, 0.0}, p);
+
+    Mat2X q(2, 1);
+    q << 1.1, 0.0;   // both edges stretched 0.1: forces 10 and 20 along +x
+    const Mat2X v = Mat2X::Zero(2, 1);
+    Mat2X F(2, 1);
+    SymmBlockTriMat K(1);
+    poison(K);
+    m.assemble(q, v, F, &K);
+
+    CHECK(close(F.col(0), Vec2(10.0, -10.0)));   // (20 - 10, 1.0 * -10)
+
+    // Collinear along x, main only: each edge has K = diag(k, T/len), and dF/dq = -(K_0 + K_1)
+    Mat2 expected;
+    expected << -(100.0 + 200.0), 0.0,
+                0.0, -(10.0 / 1.1 + 20.0 / 1.1);
+    CHECK(K.diag(0).isApprox(expected));
+}
+
 } // namespace
 
 int main()
@@ -205,6 +360,9 @@ int main()
     test_edge_force();
     test_edge_jacobian();
     test_assemble();
+    test_assemble_jacobian();
+    test_assemble_gravity();
+    test_assemble_single_node();
 
     if (failures > 0) {
         std::cerr << failures << " check(s) failed\n";
