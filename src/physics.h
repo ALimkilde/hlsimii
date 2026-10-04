@@ -1,14 +1,8 @@
 #pragma once
 
-#include <Eigen/Dense>
-
+#include "eigen_include.h"
 #include "line.h"
 #include "mesh.h"
-
-using Vec2 = Eigen::Vector2d;
-using Vec = Eigen::VectorXd;
-using Mat2X = Eigen::Matrix2Xd;
-using Mat2 = Eigen::Matrix2d;
 
 struct Params {
    Vec2 gravity{0.0, -9.81};
@@ -36,14 +30,11 @@ class LineModel {
                                                                        //
       void edge_forces(Eigen::Ref<const Mat2X> q, Eigen::Ref<const Mat2X> v) const; // Fills Fe_
                                                                                      //
-      void net_forces(Eigen::Ref<const Mat2X> q, Eigen::Ref<const Mat2X> v, Eigen::Ref<Mat2X> F) const; // return sum of forces
-                                                                                   //
-      Mat2X get_Fe() const { return Fe_; };
+      void assemble(Eigen::Ref<const Mat2X> q, Eigen::Ref<const Mat2X> v, Eigen::Ref<Mat2X> F, Mat* K = nullptr) const; // return sum of forces
 
   private:
       const DiscreteLine line_;
       Vec2 anchor_left_, anchor_right_;
       Params params_;
-      mutable Mat2X Fe_;     // per-edge forces 
       Vec inv_m_;    // inverse node masses
 };
