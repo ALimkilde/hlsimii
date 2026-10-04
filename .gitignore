@@ -67,3 +67,14 @@ vcpkg_installed/
 # test output & cache
 Testing/
 .cache/
+
+# claude
+.claude
+CLAUDE.md
+
+# latex
+docs/*.aux
+docs/*.fdb_latexmk
+docs/*.fls
+docs/*.synctex.gz
+docs/*.toc
