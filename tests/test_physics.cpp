@@ -142,7 +142,6 @@ void test_edge_jacobian()
 // f_{i+1} - f_i (nodes numbered from the left anchor, which is node 0).
 void test_assemble()
 {
-    const Mat2X v = Mat2X::Zero(2, 2);
 
     // F starts as NaN: assemble must overwrite it, not add to stale values
     const double nan = std::numeric_limits<double>::quiet_NaN();
@@ -155,7 +154,7 @@ void test_assemble()
         q << 1.0, 2.0,
              0.0, 0.0;
         Mat2X F = fresh_F();
-        m.assemble(q, v, F);
+        m.assemble(q, F);
         CHECK(F.isZero());
     }
 
@@ -166,7 +165,7 @@ void test_assemble()
         q << 1.1, 2.2,
              0.0, 0.0;
         Mat2X F = fresh_F();
-        m.assemble(q, v, F);
+        m.assemble(q, F);
         CHECK(close(F.col(0), Vec2(10.0, 0.0)));   // 20 - 10
         CHECK(close(F.col(1), Vec2(10.0, 0.0)));   // 30 - 20
     }
@@ -179,7 +178,7 @@ void test_assemble()
         q << 1.1, 2.6,
              0.0, 0.0;
         Mat2X F = fresh_F();
-        m.assemble(q, v, F);
+        m.assemble(q, F);
         CHECK(close(F.col(0), Vec2(105.0, 0.0)));    // 115 - 10
         CHECK(close(F.col(1), Vec2(-115.0, 0.0)));   // 0 - 115
     }
@@ -192,7 +191,7 @@ void test_assemble()
         q << 0.0, 1.0,
              1.1, 1.1;
         Mat2X F = fresh_F();
-        m.assemble(q, v, F);
+        m.assemble(q, F);
         CHECK(close(F.col(0), Vec2(0.0, -10.0)));   // 0 - (0, 10)
         CHECK(close(F.col(1), Vec2(0.0, -30.0)));   // (0, -30) - 0
     }
@@ -250,19 +249,18 @@ void test_assemble_jacobian()
 {
     const Zigzag z = zigzag();
     const LineModel m(five_edge_line(), z.left, z.right, Params{});
-    const Mat2X v = Mat2X::Zero(2, 4);
     const Eigen::Index n = z.q.size();   // 8 coordinates, ordered [x0 y0 x1 y1 ...] like the dense K
 
     SymmBlockTriMat K(4);
     poison(K);
     Mat2X F(2, 4);
-    m.assemble(z.q, v, F, &K);
+    m.assemble(z.q, F, &K);
     const Mat J = K.to_dense();
     CHECK(J.allFinite());
 
     // Forces must not depend on whether the Jacobian was requested
     Mat2X F_no_K(2, 4);
-    m.assemble(z.q, v, F_no_K);
+    m.assemble(z.q, F_no_K);
     CHECK(F_no_K == F);
 
     std::cout << "assembled Jacobian FD check (zigzag, 4 free nodes)\n";
@@ -277,8 +275,8 @@ void test_assemble_jacobian()
             qp.data()[j] += h;
             qm.data()[j] -= h;
             Mat2X Fp(2, 4), Fm(2, 4);
-            m.assemble(qp, v, Fp);
-            m.assemble(qm, v, Fm);
+            m.assemble(qp, Fp);
+            m.assemble(qm, Fm);
             J_fd.col(j) = Eigen::Map<const Vec>((Fp - Fm).eval().data(), n) / (2.0 * h);
         }
         const double err = (J_fd - J).cwiseAbs().maxCoeff();
@@ -305,11 +303,10 @@ void test_assemble_gravity()
     Mat2X q(2, 4);
     q << 0.8, 1.6, 2.4, 3.2,
          0.0, 0.0, 0.0, 0.0;   // edges 0.8 long: all slack
-    const Mat2X v = Mat2X::Zero(2, 4);
     Mat2X F(2, 4);
     SymmBlockTriMat K(4);
     poison(K);
-    m.assemble(q, v, F, &K);
+    m.assemble(q, F, &K);
 
     CHECK(close(F.col(0), Vec2(0.0, -11.0)));
     CHECK(close(F.col(1), Vec2(0.0, -13.0)));
@@ -338,11 +335,10 @@ void test_assemble_single_node()
 
     Mat2X q(2, 1);
     q << 1.1, 0.0;   // both edges stretched 0.1: forces 10 and 20 along +x
-    const Mat2X v = Mat2X::Zero(2, 1);
     Mat2X F(2, 1);
     SymmBlockTriMat K(1);
     poison(K);
-    m.assemble(q, v, F, &K);
+    m.assemble(q, F, &K);
 
     CHECK(close(F.col(0), Vec2(10.0, -10.0)));   // (20 - 10, 1.0 * -10)
 
@@ -351,6 +347,39 @@ void test_assemble_single_node()
     expected << -(100.0 + 200.0), 0.0,
                 0.0, -(10.0 / 1.1 + 20.0 / 1.1);
     CHECK(K.diag(0).isApprox(expected));
+}
+
+// residual() is assemble() on flat vectors ordered [x0 y0 x1 y1 ...].
+// The entries are compared one by one, so a wrong layout (e.g. all x first, then all y) would fail.
+void test_residual()
+{
+    const Zigzag z = zigzag();
+    const LineModel m(five_edge_line(), z.left, z.right, Params{});
+
+    Mat2X F(2, 4);
+    SymmBlockTriMat K(4);
+    m.assemble(z.q, F, &K);
+
+    Vec q(8);
+    for (int i = 0; i < 4; ++i) {
+        q[2 * i] = z.q(0, i);
+        q[2 * i + 1] = z.q(1, i);
+    }
+
+    Vec r(8);
+    SymmBlockTriMat jac(4);
+    poison(jac);
+    m.residual(q, r, &jac);
+    for (int i = 0; i < 4; ++i) {
+        CHECK(r[2 * i] == F(0, i));
+        CHECK(r[2 * i + 1] == F(1, i));
+    }
+    CHECK(jac.to_dense() == K.to_dense());
+
+    // Without a Jacobian
+    Vec r_no_jac(8);
+    m.residual(q, r_no_jac);
+    CHECK(r_no_jac == r);
 }
 
 } // namespace
@@ -363,6 +392,7 @@ int main()
     test_assemble_jacobian();
     test_assemble_gravity();
     test_assemble_single_node();
+    test_residual();
 
     if (failures > 0) {
         std::cerr << failures << " check(s) failed\n";

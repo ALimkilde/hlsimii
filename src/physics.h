@@ -24,12 +24,12 @@ class LineModel {
       void rhs(double t, const Vec& y, Vec& dy) const; // ODE: y input state; dy output rhs = [v | F/m]
                                 
       // === Static Solves === //
-      void residual(const Vec& q, Vec& r) const;       // static equilibrium: r = F(q, 0), in force units
+      void residual(const Vec& q, Vec& r, SymmBlockTriMat* jac = nullptr) const;       // static equilibrium: r = F(q), in force units
 
       // === Edge forces === //
       Vec2 edge_force(Eigen::Index e, const Vec2& qa, const Vec2& qb, Mat2* K = nullptr) const; 
                                                                                      //
-      void assemble(Eigen::Ref<const Mat2X> q, Eigen::Ref<const Mat2X> v, Eigen::Ref<Mat2X> F, SymmBlockTriMat* K = nullptr) const; // Compute net forces in F and Jac in K
+      void assemble(Eigen::Ref<const Mat2X> q, Eigen::Ref<Mat2X> F, SymmBlockTriMat* K = nullptr) const; // Compute net forces in F and Jac in K
 
   private:
       const DiscreteLine line_;

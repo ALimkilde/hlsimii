@@ -48,7 +48,7 @@ static Eigen::Index last_edge(Eigen::Index i) { return i; }
 static Eigen::Index next_edge(Eigen::Index i) { return i+1; }
 
 // Fills net forces into F (and Jacobian if argument present)
-void LineModel::assemble(Eigen::Ref<const Mat2X> q, Eigen::Ref<const Mat2X> v, Eigen::Ref<Mat2X> F, SymmBlockTriMat* K) const
+void LineModel::assemble(Eigen::Ref<const Mat2X> q, Eigen::Ref<Mat2X> F, SymmBlockTriMat* K) const
 {
    const Eigen::Index num_edges = line_.num_elements();
 
@@ -92,4 +92,14 @@ void LineModel::assemble(Eigen::Ref<const Mat2X> q, Eigen::Ref<const Mat2X> v, E
 
 }
 
+void LineModel::residual(const Vec& q, Vec& r, SymmBlockTriMat* jac) const {
+
+   assert(r.size() == q.size());
+
+   Eigen::Map<const Mat2X> Q(q.data(), 2, q.size()/2);
+   Eigen::Map<Mat2X> R(r.data(), 2, r.size()/2);
+
+   assemble(Q, R, jac);
+
+}
 
