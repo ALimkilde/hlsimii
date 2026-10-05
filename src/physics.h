@@ -26,12 +26,13 @@ class LineModel {
       // === Static Solves === //
       void residual(const Vec& q, Vec& r, SymmBlockTriMat* jac = nullptr) const;       // static equilibrium: r = F(q), in force units
       void static_solver(Vec& q, double tol) const;
-      bool any_edge_slack(Vec& q) const;
+      Vec static_solver_initial_guess() const;
+      bool any_edge_slack_flat(const Vec& q) const;
       bool any_edge_slack(Eigen::Ref<const Mat2X> q) const;
 
       // === Edge forces === //
-      Vec2 edge_vector(Eigen::Ref<const Mat2X> Eigen::Index e) const;
-      Vec2 edge_force(Eigen::Index e, const Vec2& qa, const Vec2& qb, Mat2* K = nullptr) const; 
+      Vec2 edge_vector(Eigen::Ref<const Mat2X> q, Eigen::Index e) const;
+      Vec2 edge_force(Eigen::Index e, const Vec2& dq, Mat2* K = nullptr) const; 
                                                                                      //
       void assemble(Eigen::Ref<const Mat2X> q, Eigen::Ref<Mat2X> F, SymmBlockTriMat* K = nullptr) const; // Compute net forces in F and Jac in K
 
@@ -40,4 +41,5 @@ class LineModel {
       Vec2 anchor_left_, anchor_right_;
       Params params_;
       Vec inv_m_;    // inverse node masses
+      
 };

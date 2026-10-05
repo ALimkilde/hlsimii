@@ -1,4 +1,4 @@
-// Tests for LineModel::edge_force and LineModel::assemble.
+// Tests for LineModel::edge_vector, LineModel::edge_force and LineModel::assemble.
 // Uses a CHECK macro instead of assert so the tests also run in Release builds.
 
 #include <algorithm>
@@ -45,95 +45,94 @@ LineModel model_with_anchors(Vec2 left, Vec2 right)
     return LineModel(three_edge_line(), left, right, p);
 }
 
+// Edge e runs from node e-1 to node e, with the anchors standing in for node -1 and node q.cols()
+void test_edge_vector()
+{
+    const LineModel m = model_with_anchors({0.0, 0.0}, {3.0, 0.5});
+    Mat2X q(2, 2);
+    q << 1.1, 2.3,
+         0.2, -0.4;
+
+    CHECK(close(m.edge_vector(q, 0), Vec2(1.1, 0.2)));    // left anchor -> node 0
+    CHECK(close(m.edge_vector(q, 1), Vec2(1.2, -0.6)));   // node 0 -> node 1
+    CHECK(close(m.edge_vector(q, 2), Vec2(0.7, 0.9)));    // node 1 -> right anchor
+}
+
+// edge_force takes the edge vector dq = qb - qa and returns the force pulling qa towards qb
 void test_edge_force()
 {
     const LineModel m = model_with_anchors({0.0, 0.0}, {3.0, 0.0});
-    const Vec2 origin(0.0, 0.0);
 
     // Shorter than both rest lengths: slack
-    CHECK(close(m.edge_force(0, origin, {0.9, 0.0}), Vec2(0.0, 0.0)));
+    CHECK(close(m.edge_force(0, {0.9, 0.0}), Vec2(0.0, 0.0)));
     // Exactly at the main rest length: still zero
-    CHECK(close(m.edge_force(0, origin, {1.0, 0.0}), Vec2(0.0, 0.0)));
+    CHECK(close(m.edge_force(0, {1.0, 0.0}), Vec2(0.0, 0.0)));
     // Main stretched 0.1, backup slack: 100 * 0.1
-    CHECK(close(m.edge_force(0, origin, {1.1, 0.0}), Vec2(10.0, 0.0)));
+    CHECK(close(m.edge_force(0, {1.1, 0.0}), Vec2(10.0, 0.0)));
     // Exactly at the backup rest length: main only, 100 * 0.2
-    CHECK(close(m.edge_force(0, origin, {1.2, 0.0}), Vec2(20.0, 0.0)));
+    CHECK(close(m.edge_force(0, {1.2, 0.0}), Vec2(20.0, 0.0)));
     // Both stretched: 100 * 0.5 + 50 * 0.3
-    CHECK(close(m.edge_force(0, origin, {1.5, 0.0}), Vec2(65.0, 0.0)));
+    CHECK(close(m.edge_force(0, {1.5, 0.0}), Vec2(65.0, 0.0)));
 
     // The direction follows the edge; the magnitude does not change
-    CHECK(close(m.edge_force(0, origin, {0.0, 1.1}), Vec2(0.0, 10.0)));
+    CHECK(close(m.edge_force(0, {0.0, 1.1}), Vec2(0.0, 10.0)));
     const Vec2 dir(0.6, 0.8);
-    CHECK(close(m.edge_force(0, origin, 1.5 * dir), 65.0 * dir));
-    // Only the relative position matters
-    const Vec2 shift(-4.0, 7.0);
-    CHECK(close(m.edge_force(0, shift, shift + 1.5 * dir), 65.0 * dir));
-    // Swapping the endpoints flips the force
-    CHECK(close(m.edge_force(0, 1.5 * dir, origin), -65.0 * dir));
+    CHECK(close(m.edge_force(0, 1.5 * dir), 65.0 * dir));
+    // Reversing the edge flips the force
+    CHECK(close(m.edge_force(0, -1.5 * dir), -65.0 * dir));
 
     // The edge index selects the stiffness: 200 * 0.1 and 300 * 0.1
-    CHECK(close(m.edge_force(1, origin, {1.1, 0.0}), Vec2(20.0, 0.0)));
-    CHECK(close(m.edge_force(2, origin, {1.1, 0.0}), Vec2(30.0, 0.0)));
+    CHECK(close(m.edge_force(1, {1.1, 0.0}), Vec2(20.0, 0.0)));
+    CHECK(close(m.edge_force(2, {1.1, 0.0}), Vec2(30.0, 0.0)));
 }
 
-// Finite-difference check of the edge Jacobian K = dF/dqb (and dF/dqa = -K).
+// Finite-difference check of the edge Jacobian K = dF/d(dq).
 // The central-difference error should shrink like h^2, so the observed order should be close to 2.
 // Prints a convergence table for each case.
-void check_edge_jacobian(const LineModel& m, Eigen::Index e, const Vec2& qa, const Vec2& qb, const char* name)
+void check_edge_jacobian(const LineModel& m, Eigen::Index e, const Vec2& dq, const char* name)
 {
     Mat2 K;
-    m.edge_force(e, qa, qb, &K);
+    m.edge_force(e, dq, &K);
 
     // A generic direction: not along the edge, so the geometric term is exercised
     const Vec2 d = Vec2(0.3, -0.7).normalized();
     const Vec2 Kd = K * d;
 
     std::cout << "edge Jacobian FD check: " << name << "\n";
-    std::cout << "        h        err(qb)    order      err(qa)    order\n";
+    std::cout << "        h        err        order\n";
 
     double h = 1e-1;
-    double prev_err_b = 0.0, prev_err_a = 0.0;
-    double order_b = 0.0, order_a = 0.0;
+    double prev_err = 0.0, order = 0.0;
     for (int i = 0; i < 6; ++i, h /= 2.0) {
-        const Vec2 fd_b = (m.edge_force(e, qa, qb + h * d) - m.edge_force(e, qa, qb - h * d)) / (2.0 * h);
-        const Vec2 fd_a = (m.edge_force(e, qa + h * d, qb) - m.edge_force(e, qa - h * d, qb)) / (2.0 * h);
-        const double err_b = (fd_b - Kd).norm();
-        const double err_a = (fd_a + Kd).norm();
+        const Vec2 fd = (m.edge_force(e, dq + h * d) - m.edge_force(e, dq - h * d)) / (2.0 * h);
+        const double err = (fd - Kd).norm();
 
-        std::printf("  %9.2e  %10.3e", h, err_b);
+        std::printf("  %9.2e  %10.3e", h, err);
         if (i > 0) {
-            order_b = std::log2(prev_err_b / err_b);
-            order_a = std::log2(prev_err_a / err_a);
-            std::printf("  %6.3f", order_b);
-        } else {
-            std::printf("        ");
+            order = std::log2(prev_err / err);
+            std::printf("  %6.3f", order);
         }
-        std::printf("   %10.3e", err_a);
-        if (i > 0) std::printf("  %6.3f", order_a);
         std::printf("\n");
 
-        prev_err_b = err_b;
-        prev_err_a = err_a;
+        prev_err = err;
     }
 
-    CHECK(std::abs(order_b - 2.0) < 0.1);
-    CHECK(std::abs(order_a - 2.0) < 0.1);
+    CHECK(std::abs(order - 2.0) < 0.1);
 }
 
 void test_edge_jacobian()
 {
     const LineModel m = model_with_anchors({0.0, 0.0}, {3.0, 0.0});
-    const Vec2 shift(-0.4, 0.7);
     const Vec2 dir(0.6, 0.8);
 
     // Lengths are kept away from the rest lengths 1.0 and 1.2, where the force has a kink
-    check_edge_jacobian(m, 0, shift, shift + 1.1 * dir, "main only (len 1.1)");
-    check_edge_jacobian(m, 0, shift, shift + 1.5 * dir, "main + backup (len 1.5)");
-    check_edge_jacobian(m, 2, shift, shift + 1.5 * dir, "edge 2, main + backup (len 1.5)");
+    check_edge_jacobian(m, 0, 1.1 * dir, "main only (len 1.1)");
+    check_edge_jacobian(m, 0, 1.5 * dir, "main + backup (len 1.5)");
+    check_edge_jacobian(m, 2, 1.5 * dir, "edge 2, main + backup (len 1.5)");
 
     // Slack edge: no force and no stiffness
     Mat2 K = Mat2::Ones();
-    m.edge_force(0, shift, shift + 0.9 * dir, &K);
+    m.edge_force(0, 0.9 * dir, &K);
     CHECK(K.isZero());
 }
 
@@ -317,8 +316,8 @@ void test_assemble_gravity()
     CHECK(K.to_dense().isZero());
 }
 
-// Smallest valid line: two edges and one free node, so the loop body never runs
-// and only the code after the loop fills F and K.
+// Smallest valid line: two edges and one free node, so the loop runs once, the node is both
+// first and last, and K has no upper block to write.
 void test_assemble_single_node()
 {
     DiscreteLine d;
@@ -386,6 +385,7 @@ void test_residual()
 
 int main()
 {
+    test_edge_vector();
     test_edge_force();
     test_edge_jacobian();
     test_assemble();

@@ -10,15 +10,21 @@ LineModel::LineModel(const DiscreteLine& line, Vec2 anchor_left, Vec2 anchor_rig
 {
 }
 
-Vec2 LineModel::edge_vector(Eigen::Ref<const Mat2X> Eigen::Index e) const {
+// dq = qb - qa for edge e, which runs from node e-1 to node e.
+// Node -1 is anchor_left_ and node q.cols() is anchor_right_.
+Vec2 LineModel::edge_vector(Eigen::Ref<const Mat2X> q, Eigen::Index e) const {
 
-   // Claude fills this
+   const Eigen::Index num_nodes = q.cols();
+   assert(e >= 0 && e <= num_nodes);
 
+   const Vec2 qa = (e == 0)         ? anchor_left_  : Vec2(q.col(e - 1));
+   const Vec2 qb = (e == num_nodes) ? anchor_right_ : Vec2(q.col(e));
+
+   return qb - qa;
 }
 
-  Vec2 LineModel::edge_force(Eigen::Index e, const Vec2& qa, const Vec2& qb, Mat2* K) const
+  Vec2 LineModel::edge_force(Eigen::Index e, const Vec2& dq, Mat2* K) const
 {
-   const Vec2 dq = qb - qa;
    const double len = dq.norm();
    const double s_main = len - line_.l_main[e];
    const double s_backup = len - line_.l_backup[e];
@@ -57,6 +63,7 @@ static Eigen::Index next_edge(Eigen::Index i) { return i+1; }
 void LineModel::assemble(Eigen::Ref<const Mat2X> q, Eigen::Ref<Mat2X> F, SymmBlockTriMat* K) const
 {
    const Eigen::Index num_edges = line_.num_elements();
+   const Eigen::Index num_nodes = q.cols();
 
    assert(num_edges > 1);
 
@@ -69,12 +76,13 @@ void LineModel::assemble(Eigen::Ref<const Mat2X> q, Eigen::Ref<Mat2X> F, SymmBlo
       next_edge_Kptr = &next_edge_K;
    }
 
-   Vec2 last_edge_force = edge_force(last_edge(0), anchor_left_, q.col(0), last_edge_Kptr);   
+   Vec2 last_edge_force = edge_force(last_edge(0), edge_vector(q,0), last_edge_Kptr);   
    Vec2 next_edge_force;
 
+   // Todo; refactor an assemble over edges
 
-   for (Eigen::Index i = 0; i < num_edges - 2; ++i){
-      next_edge_force = edge_force(next_edge(i), q.col(i), q.col(i+1), next_edge_Kptr);
+   for (Eigen::Index i = 0; i < num_nodes; ++i){
+      next_edge_force = edge_force(next_edge(i), edge_vector(q,next_edge(i)), next_edge_Kptr);
       F.col(i) = next_edge_force - last_edge_force 
                   + params_.gravity * line_.node_mass[mass_index(i)];
 
@@ -82,19 +90,12 @@ void LineModel::assemble(Eigen::Ref<const Mat2X> q, Eigen::Ref<Mat2X> F, SymmBlo
 
       if (K) {
          K->diag(i) = -next_edge_K - last_edge_K;
-         K->upper(i) = next_edge_K;
+         if (i < num_nodes - 1) K->upper(i) = next_edge_K;
 
          last_edge_K = next_edge_K;
       }
 
    }
-
-   Eigen::Index i = num_edges - 2;
-   next_edge_force = edge_force(next_edge(i), q.col(i), anchor_right_, next_edge_Kptr);
-   F.col(i) = next_edge_force - last_edge_force 
-               + params_.gravity * line_.node_mass[mass_index(i)];
-
-   if (K) K->diag(i) = -next_edge_K - last_edge_K;
 
 }
 
@@ -109,19 +110,36 @@ void LineModel::residual(const Vec& q, Vec& r, SymmBlockTriMat* jac) const {
 
 }
 
+Vec static_solver_initial_guess() const {
 
-bool LineModel::any_edge_slack(Vec& q) const {
+   // For claude to write
+   //
+}
+
+
+bool LineModel::any_edge_slack_flat(const Vec& q) const {
 
    Eigen::Map<const Mat2X> Q(q.data(), 2, q.size()/2);
    return any_edge_slack(Q);
 
 }
 
+
 bool LineModel::any_edge_slack(Eigen::Ref<const Mat2X> q) const {
 
-   // Compute s for all edges
+   const Eigen::Index num_edges = line_.num_elements();
 
-   return s_main>0 || s_backup>0;
+   for (Eigen::Index e = 0; e < num_edges; e++) {
+      Vec2 dq = edge_vector(q,e);
+      const double len = dq.norm();
+      const double s_main = len - line_.l_main[e];
+      const double s_backup = len - line_.l_backup[e];
+
+      if (s_main<=0 && s_backup<=0) return true;
+
+   }
+
+   return false;
 
 }
 
@@ -145,13 +163,13 @@ void LineModel::static_solver(Vec& q, double tol) const {
        qnew = q + alpha*dq;
 
        // Linesearch to avoid slack edges.
-       while ( any_edge_slack(qnew) ){
+       while ( any_edge_slack_flat(qnew) ){
           alpha *= reduce_alpha;
 
           qnew = q + alpha*dq;
        }
 
-       q = qnew
+       q = qnew;
 
    }
 
