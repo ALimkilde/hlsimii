@@ -10,6 +10,12 @@ LineModel::LineModel(const DiscreteLine& line, Vec2 anchor_left, Vec2 anchor_rig
 {
 }
 
+Vec2 LineModel::edge_vector(Eigen::Ref<const Mat2X> Eigen::Index e) const {
+
+   // Claude fills this
+
+}
+
   Vec2 LineModel::edge_force(Eigen::Index e, const Vec2& qa, const Vec2& qb, Mat2* K) const
 {
    const Vec2 dq = qb - qa;
@@ -102,4 +108,53 @@ void LineModel::residual(const Vec& q, Vec& r, SymmBlockTriMat* jac) const {
    assemble(Q, R, jac);
 
 }
+
+
+bool LineModel::any_edge_slack(Vec& q) const {
+
+   Eigen::Map<const Mat2X> Q(q.data(), 2, q.size()/2);
+   return any_edge_slack(Q);
+
+}
+
+bool LineModel::any_edge_slack(Eigen::Ref<const Mat2X> q) const {
+
+   // Compute s for all edges
+
+   return s_main>0 || s_backup>0;
+
+}
+
+void LineModel::static_solver(Vec& q, double tol) const {
+
+   int maxsteps = 1000;
+   double reduce_alpha = 0.9;
+
+   Vec r(q.size());
+   Vec dq(q.size()), qnew(q.size()); 
+   SymmBlockTriMat Jac(q.size()/2);
+
+   for (int i = 0; i < maxsteps; i++) {
+       residual(q, r, &Jac);
+
+       if (r.norm() < tol) return
+
+       Jac.solve(dq, -r);
+
+       double alpha = 1;
+       qnew = q + alpha*dq;
+
+       // Linesearch to avoid slack edges.
+       while ( any_edge_slack(qnew) ){
+          alpha *= reduce_alpha;
+
+          qnew = q + alpha*dq;
+       }
+
+       q = qnew
+
+   }
+
+}
+
 
