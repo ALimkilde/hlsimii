@@ -2,50 +2,58 @@
 
 ## 1. State representation
 
-- [ ] Define the ODE state and indexing.
-- [ ] Use contiguous storage:
+- [x] Define the highline segmented representation
+- [x] Decide and document boundary representation.
+- [x] Define the ODE state and indexing.
+- [x] Use contiguous storage:
   - `q = [x0, y0, x1, y1, ...]`
   - `v = [vx0, vy0, vx1, vy1, ...]`
   - `state = [q | v]`
-- [ ] Use `Eigen::VectorXd` for the underlying state.
-- [ ] Use `Eigen::Map` for zero-copy N × 2 views of positions and velocities.
-- [ ] Decide and document boundary representation.
-- [ ] Define the highline segmented representation
+- [x] Use `Eigen::VectorXd` for the underlying state.
+- [x] Use `Eigen::Map` for zero-copy N × 2 views of positions and velocities.
 
-## 2. Mechanics kernel
+## 2. Implement Statix Mechanics kernel
 
-- [ ] Implement spring forces/accelerations with explicit loops.
-- [ ] Avoid unnecessary temporary allocations.
-- [ ] Keep mechanics independent of the ODE integrator.
-- [ ] Implement boundary conditions cleanly.
-- [ ] Add basic physics tests:
-  - [ ] Single spring
-  - [ ] Equilibrium
-  - [ ] Equal/opposite forces
-  - [ ] Gravity
-  - [ ] Slack/taut spring
-  - [ ] Boundary behavior
+- [x] Implement spring forces/accelerations with explicit loops.
+- [x] Avoid unnecessary temporary allocations.
+- [x] Keep mechanics independent of the ODE integrator.
+- [x] Implement boundary conditions cleanly.
+- [x] Add basic physics tests:
+  - [x] Single spring
+  - [x] Equilibrium
+  - [x] Equal/opposite forces
+  - [x] Gravity
+  - [x] Slack/taut spring
+  - [x] Boundary behavior
 
 ## 3. Static solver
 
-- [ ] Implement static equilibrium solves.
-- [ ] Use the same force calculation as the dynamic model.
-- [ ] Verify solutions physically.
-- [ ] Test difficult configurations and nearly slack springs.
+- [x] Implement static equilibrium solves.
+- [x] Use the same force calculation as the dynamic model.
+- [x] Verify solutions physically.
+- [x] Add slackliner to static equations
+- [ ] Add pull_to_tension functionality
 
 ## 4. Spring Jacobian
 
-- [ ] Derive and implement the analytic spring Jacobian.
-- [ ] Use it to accelerate Newton/static solves.
-- [ ] Compare analytic derivatives against finite differences.
-- [ ] Test the Jacobian at many random physically reasonable configurations.
-- [ ] Investigate carefully around `max(..., 0)` transitions.
+- [x] Derive and implement the analytic spring Jacobian.
+- [x] Use it to accelerate Newton/static solves.
+- [x] Compare analytic derivatives against finite differences.
+- [x] Test the Jacobian at many random physically reasonable configurations.
+- [x] Investigate carefully around `max(..., 0)` transitions.
+
+## 5. Extend Static Mechanics to Dynamic;
+
+- [ ] Refactor assemble to loop over edges.
+- [ ] Make stuff from assemble reusable?
+- [ ] Implement rhs
+- [ ] Test on leash fall
+- [ ] Extend to backup fall
 
 ## 5. RK45 reference integrator
 
 - [ ] Have Claude implement a clean adaptive RK45.
 - [ ] Keep the integrator independent of the mechanics.
-- [ ] Establish tolerances, error control, and output conventions.
 - [ ] Use RK45 as a reference solver rather than the final performance target.
 
 ## 6. Springs + RK45
