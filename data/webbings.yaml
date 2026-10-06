@@ -6,6 +6,7 @@ pinktube: {stretch_pct: 15.4, tension_kN: 5, weight_g_m: 54}
 joker:    {stretch_pct: 3.6,  tension_kN: 5, weight_g_m: 54}
 solid:    {stretch_pct: 2.5,  tension_kN: 5, weight_g_m: 50}
 y2k:      {stretch_pct: 1.0,  tension_kN: 5, weight_g_m: 33}
+joker_kgs: {stretch_pct: 3.6,  tension_kN: 5, weight_g_m: 10000}
 
 # As used in the 2024 ISA backup fall experiment (see compare/compare_experiment.py).
 # pinktube above already carries that paper's values.
