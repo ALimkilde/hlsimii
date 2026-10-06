@@ -1,4 +1,5 @@
-// Tests for LineModel::edge_vector, LineModel::edge_force and LineModel::assemble.
+// Tests for LineModel::edge_vector, edge_force, assemble, residual, both_neighboring_edges_slack
+// and place/remove_slackliner.
 // Uses a CHECK macro instead of assert so the tests also run in Release builds.
 
 #include <algorithm>
@@ -381,6 +382,70 @@ void test_residual()
     CHECK(r_no_jac == r);
 }
 
+// Lays the five edges of five_edge_line() out along x with the given lengths, and checks that
+// the Mat2X and flat versions agree. Main rest length is 1.0, so 0.9 is slack and 1.1 is taut.
+bool neighbors_slack(const double (&len)[5])
+{
+    Mat2X q(2, 4);
+    double x = 0.0;
+    for (int e = 0; e < 4; ++e) {
+        x += len[e];
+        q.col(e) = Vec2(x, 0.0);
+    }
+    const LineModel m(five_edge_line(), {0.0, 0.0}, {x + len[4], 0.0}, Params{});
+
+    const bool result = m.both_neighboring_edges_slack(q);
+    const Vec q_flat = Eigen::Map<const Vec>(q.data(), q.size());
+    CHECK(m.both_neighboring_edges_slack_flat(q_flat) == result);
+    return result;
+}
+
+// Only two slack edges next to each other count, including the pairs at either anchor
+void test_both_neighboring_edges_slack()
+{
+    CHECK(!neighbors_slack({1.1, 1.1, 1.1, 1.1, 1.1}));   // all taut
+    CHECK(!neighbors_slack({0.9, 1.1, 0.9, 1.1, 0.9}));   // slack, but never two in a row
+    CHECK(neighbors_slack({0.9, 0.9, 1.1, 1.1, 1.1}));    // pair at the left anchor
+    CHECK(neighbors_slack({1.1, 0.9, 0.9, 1.1, 1.1}));    // pair in the middle
+    CHECK(neighbors_slack({1.1, 1.1, 1.1, 0.9, 0.9}));    // pair at the right anchor: last edge must be checked
+}
+
+
+// A slackliner placed on free node i adds mass * g to F.col(i) and nothing else. The line is all
+// slack, so F is pure gravity. Every free node is tried, including the first and the last.
+void test_place_slackliner()
+{
+    Params p;
+    p.gravity = Vec2(0.0, -10.0);
+    const LineModel m(five_edge_line(), {0.0, 0.0}, {4.0, 0.0}, p);
+    const double mass = 80.0;
+
+    Mat2X q(2, 4);
+    q << 0.8, 1.6, 2.4, 3.2,
+         0.0, 0.0, 0.0, 0.0;   // edges 0.8 long: all slack
+    Mat2X F_bare(2, 4), F(2, 4);
+    m.assemble(q, F_bare);
+
+    for (int i = 0; i < 4; ++i) {
+        m.place_slackliner(i, mass);
+        m.assemble(q, F);
+        for (int j = 0; j < 4; ++j) {
+            const Vec2 extra = (j == i) ? Vec2(mass * p.gravity) : Vec2::Zero();
+            if (!close(F.col(j), Vec2(F_bare.col(j) + extra)))
+                std::cerr << "  slackliner on node " << i << ": wrong force on node " << j << "\n";
+            CHECK(close(F.col(j), Vec2(F_bare.col(j) + extra)));
+        }
+    }
+
+    // Removing restores the bare line, and a second remove is harmless
+    m.remove_slackliner();
+    m.assemble(q, F);
+    CHECK(F == F_bare);
+    m.remove_slackliner();
+    m.assemble(q, F);
+    CHECK(F == F_bare);
+}
+
 } // namespace
 
 int main()
@@ -393,6 +458,8 @@ int main()
     test_assemble_gravity();
     test_assemble_single_node();
     test_residual();
+    test_both_neighboring_edges_slack();
+    test_place_slackliner();
 
     if (failures > 0) {
         std::cerr << failures << " check(s) failed\n";
