@@ -5,7 +5,8 @@ gif: false           # write example.gif (leash fall animated above backup fall)
 L: 1000              # length of highline spot [m]
 N: 100               # number of discretization verticies
 T: 10                # length of simulation [s]
-tension_kN: 5.50     # standing tension (or pull_webbing, exactly one of the two)
+# tension_kN: 5.50     # standing tension (or pull_webbing, exactly one of the two)
+pull_webbing: 5
 pull_side: right    # anchor side to pull from
 
 slackliner:
