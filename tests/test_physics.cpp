@@ -1,5 +1,5 @@
 // Tests for LineModel::edge_vector, edge_force, assemble, residual, both_neighboring_edges_slack
-// and place/remove_slackliner.
+// place/remove_slackliner and rhs.
 // Uses a CHECK macro instead of assert so the tests also run in Release builds.
 
 #include <algorithm>
@@ -446,6 +446,98 @@ void test_place_slackliner()
     CHECK(F == F_bare);
 }
 
+// Packs positions and velocities into the ODE state y = [x0 y0 x1 y1 ... | vx0 vy0 vx1 vy1 ...]
+Vec pack_state(const Mat2X& q, const Mat2X& v)
+{
+    Vec y(q.size() + v.size());
+    y << Eigen::Map<const Vec>(q.data(), q.size()), Eigen::Map<const Vec>(v.data(), v.size());
+    return y;
+}
+
+// rhs gives dy = [v | F/m]. On the zigzag with gravity on, F comes from assemble and each node is
+// divided by its own mass. The flat entries are compared one by one, so a wrong layout fails.
+void test_rhs_layout()
+{
+    const Zigzag z = zigzag();
+    const LineModel m(five_edge_line(), z.left, z.right, Params{});
+    const double node_mass[4] = {1.1, 1.3, 1.7, 1.9};
+
+    Mat2X v(2, 4);
+    v << 0.1, -0.2, 0.3, -0.4,
+         0.5, -0.6, 0.7, -0.8;
+    const Vec y = pack_state(z.q, v);
+
+    // dy starts as NaN: rhs must overwrite every entry
+    Vec dy = Vec::Constant(16, std::numeric_limits<double>::quiet_NaN());
+    m.rhs(0.0, y, dy);
+    CHECK(dy.allFinite());
+
+    Mat2X F(2, 4);
+    m.assemble(z.q, F);
+
+    for (int i = 0; i < 4; ++i) {
+        CHECK(dy[2 * i] == v(0, i));
+        CHECK(dy[2 * i + 1] == v(1, i));
+        CHECK(std::abs(dy[8 + 2 * i] - F(0, i) / node_mass[i]) <= 1e-12 * std::abs(F(0, i)));
+        CHECK(std::abs(dy[8 + 2 * i + 1] - F(1, i) / node_mass[i]) <= 1e-12 * std::abs(F(1, i)));
+    }
+}
+
+// With every edge slack only gravity acts, and m * g / m = g on every node, whatever its mass.
+// That holds with a slackliner too: the extra mass enters both the weight and the division.
+void test_rhs_free_fall()
+{
+    Params p;
+    p.gravity = Vec2(0.0, -10.0);
+    const LineModel m(five_edge_line(), {0.0, 0.0}, {4.0, 0.0}, p);
+
+    Mat2X q(2, 4);
+    q << 0.8, 1.6, 2.4, 3.2,
+         0.0, 0.0, 0.0, 0.0;   // edges 0.8 long: all slack
+    const Vec y = pack_state(q, Mat2X::Zero(2, 4));
+    Vec dy(16);
+
+    auto all_nodes_fall_with_g = [&] {
+        Eigen::Map<const Mat2X> dv(dy.data() + 8, 2, 4);
+        for (int i = 0; i < 4; ++i)
+            if (!close(Vec2(dv.col(i)), p.gravity)) return false;
+        return true;
+    };
+
+    m.rhs(0.0, y, dy);
+    CHECK(all_nodes_fall_with_g());
+
+    m.place_slackliner(2, 80.0);
+    m.rhs(0.0, y, dy);
+    CHECK(all_nodes_fall_with_g());
+    m.remove_slackliner();
+}
+
+// At the static solution the net force is zero, so a line at rest stays at rest: dy = 0.
+// Checked without and with a slackliner, which moves the equilibrium.
+void test_rhs_static_equilibrium()
+{
+    const LineModel m(five_edge_line(), {0.0, 0.0}, {5.5, 0.0}, Params{});
+    const double tol = 1e-9;
+
+    auto at_rest_after_static_solve = [&] {
+        Vec q = m.static_solver_initial_guess();
+        if (!m.static_solver(q, tol)) return false;
+
+        const Mat2X Q = Eigen::Map<const Mat2X>(q.data(), 2, 4);
+        Vec dy(16);
+        m.rhs(0.0, pack_state(Q, Mat2X::Zero(2, 4)), dy);
+        // |F| < tol and every node mass is above 1, so |F/m| < tol
+        return dy.head(8).isZero() && dy.tail(8).norm() < tol;
+    };
+
+    CHECK(at_rest_after_static_solve());
+
+    m.place_slackliner(1, 80.0);
+    CHECK(at_rest_after_static_solve());
+    m.remove_slackliner();
+}
+
 } // namespace
 
 int main()
@@ -460,6 +552,9 @@ int main()
     test_residual();
     test_both_neighboring_edges_slack();
     test_place_slackliner();
+    test_rhs_layout();
+    test_rhs_free_fall();
+    test_rhs_static_equilibrium();
 
     if (failures > 0) {
         std::cerr << failures << " check(s) failed\n";

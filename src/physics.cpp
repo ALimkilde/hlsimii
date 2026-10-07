@@ -15,8 +15,8 @@ LineModel::LineModel(const DiscreteLine& line,
      anchor_right_(anchor_right),
      params_(p),
      has_slackliner_(false),
-     m_(line_.node_mass),
-     node_slackliner_(-1)
+     node_slackliner_(-1),
+     m_(line_.node_mass)
 {
 
 
@@ -55,7 +55,7 @@ void LineModel::remove_slackliner() const {
 
 // dq = qb - qa for edge e, which runs from node e-1 to node e.
 // Node -1 is anchor_left_ and node q.cols() is anchor_right_.
-Vec2 LineModel::edge_vector(Eigen::Ref<const Mat2X> q, Eigen::Index e) const {
+Vec2 LineModel::edge_vector(CRef<Mat2X> q, Eigen::Index e) const {
 
    const Eigen::Index num_nodes = q.cols();
    assert(e >= 0 && e <= num_nodes);
@@ -94,12 +94,11 @@ Vec2 LineModel::edge_vector(Eigen::Ref<const Mat2X> q, Eigen::Index e) const {
       *K = T/len * (Mat2::Identity() - uuT) + dT * uuT;
    }
    
-   // === Return rhs ===
    return T * u;
 }
 
 // Fills net forces into F (and Jacobian if argument present)
-void LineModel::assemble(Eigen::Ref<const Mat2X> q, Eigen::Ref<Mat2X> F, SymmBlockTriMat* K) const
+void LineModel::assemble(CRef<Mat2X> q, Ref<Mat2X> F, SymmBlockTriMat* K) const
 {
    const Eigen::Index num_edges = line_.num_elements();
    const Eigen::Index num_nodes = q.cols();
@@ -219,7 +218,7 @@ bool LineModel::both_neighboring_edges_slack_flat(const Vec& q) const {
 }
 
 
-bool LineModel::both_neighboring_edges_slack(Eigen::Ref<const Mat2X> q) const {
+bool LineModel::both_neighboring_edges_slack(CRef<Mat2X> q) const {
 
    const Eigen::Index num_edges = line_.num_elements();
    bool last_edge_slack = false;
@@ -277,3 +276,31 @@ bool LineModel::static_solver(Vec& q, double tol) const {
 }
 
 
+void LineModel::rhs(double t, const Vec& y, Vec& dy) const {
+
+   assert(y.size() ==  dy.size());
+   assert(&y != &dy);
+
+   Eigen::Index n_nodes = y.size()/4;
+
+   Eigen::Map<const Mat2X> q(y.data(), 2, n_nodes);             // First 2*n_nodes entries
+   Eigen::Map<const Mat2X> v(y.data() + 2*n_nodes, 2, n_nodes); // Last 2*n_nodes entries
+
+   Eigen::Map<Mat2X> dq(dy.data(), 2, n_nodes);             // First 2*n_nodes entries
+   Eigen::Map<Mat2X> dv(dy.data() + 2*n_nodes, 2, n_nodes); // Last 2*n_nodes entries
+
+   rhs(q, v, dq, dv);
+
+}
+
+
+void LineModel::rhs(CRef<Mat2X> q, CRef<Mat2X> v, Ref<Mat2X> dq, Ref<Mat2X> dv) const {
+
+   dq = v; 
+
+   assemble(q, dv); // No Jacobian for now
+
+   Eigen::Map<const Eigen::RowVectorXd> m(m_.data(), m_.size());
+   dv.array().rowwise() /= m.array();
+
+}
