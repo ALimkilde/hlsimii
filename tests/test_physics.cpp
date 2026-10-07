@@ -33,7 +33,7 @@ DiscreteLine three_edge_line()
     d.k_backup = {50.0, 50.0, 50.0};
     d.l_main = {1.0, 1.0, 1.0};
     d.l_backup = {1.2, 1.2, 1.2};
-    d.node_mass = {0.5, 1.0, 1.0, 0.5};
+    d.node_mass = {1.0, 1.0};
     d.element_segment = {0, 0, 0};
     return d;
 }
@@ -206,7 +206,7 @@ DiscreteLine five_edge_line()
     d.k_backup = {50.0, 60.0, 70.0, 80.0, 90.0};
     d.l_main = {1.0, 1.0, 1.0, 1.0, 1.0};
     d.l_backup = {1.2, 1.2, 1.2, 1.2, 1.2};
-    d.node_mass = {0.3, 1.1, 1.3, 1.7, 1.9, 0.7};
+    d.node_mass = {1.1, 1.3, 1.7, 1.9};
     d.element_segment = {0, 0, 0, 0, 0};
     return d;
 }
@@ -326,7 +326,7 @@ void test_assemble_single_node()
     d.k_backup = {50.0, 50.0};
     d.l_main = {1.0, 1.0};
     d.l_backup = {1.2, 1.2};
-    d.node_mass = {0.5, 1.0, 0.5};
+    d.node_mass = {1.0};
     d.element_segment = {0, 0};
 
     Params p;

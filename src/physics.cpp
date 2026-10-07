@@ -3,7 +3,6 @@
 #include <cassert>
 #include <iostream>
 
-static Eigen::Index mass_index(Eigen::Index i) { return i + 1; }
 static Eigen::Index last_edge(Eigen::Index i) { return i; }
 static Eigen::Index next_edge(Eigen::Index i) { return i+1; }
 
@@ -37,20 +36,19 @@ int LineModel::nearest_node(const Vec& q, const double x_coor) const {
 void LineModel::place_slackliner(const int node, double mass) const {
    if (has_slackliner_) remove_slackliner();
 
-   assert(node >= 0 && node < line_.num_nodes()-2);
+   assert(node >= 0 && node < line_.num_nodes());
    assert(mass > 0);
 
    has_slackliner_ = true;
    node_slackliner_ = node;
-   // TODO get rid of anchor elements in node_mass in mesh. - Then we can destroy mass_index
-   m_[mass_index(node_slackliner_)] = line_.node_mass[mass_index(node_slackliner_)] + mass;
+   m_[node_slackliner_] = line_.node_mass[node_slackliner_] + mass;
 }
 
 void LineModel::remove_slackliner() const {
    if (!has_slackliner_) return;
 
    has_slackliner_ = false;
-   m_[mass_index(node_slackliner_)] = line_.node_mass[mass_index(node_slackliner_)];
+   m_[node_slackliner_] = line_.node_mass[node_slackliner_];
 }
 
 
@@ -125,7 +123,7 @@ void LineModel::assemble(Eigen::Ref<const Mat2X> q, Eigen::Ref<Mat2X> F, SymmBlo
    for (Eigen::Index i = 0; i < num_nodes; ++i){
       next_edge_force = edge_force(next_edge(i), edge_vector(q,next_edge(i)), next_edge_Kptr);
       F.col(i) = next_edge_force - last_edge_force 
-                  + params_.gravity * m_[mass_index(i)];
+                  + params_.gravity * m_[i];
 
       last_edge_force = next_edge_force;
 

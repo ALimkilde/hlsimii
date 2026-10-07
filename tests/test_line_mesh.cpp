@@ -115,7 +115,7 @@ void test_discretize()
     int num_el = 0;
     for (int ni : n) num_el += ni;
     CHECK(d.num_elements() == num_el);
-    CHECK(d.num_nodes() == num_el + 1);
+    CHECK(d.num_nodes() == num_el - 1);
     CHECK(static_cast<int>(d.k_backup.size()) == num_el);
     CHECK(static_cast<int>(d.l_main.size()) == num_el);
     CHECK(static_cast<int>(d.l_backup.size()) == num_el);
@@ -150,6 +150,34 @@ void test_discretize()
     CHECK(throws([&] { discretize(line, {1, 0, 1}); }));
 }
 
+// Anchor masses are spread evenly over the free nodes of the first and last segment
+void test_discretize_anchor_mass()
+{
+    const Line line = three_segment_line();
+    const DiscreteLine d = discretize(line, {2, 1, 3});
+
+    // Element masses per segment
+    const double a = line.segments()[0].mass() / 2;
+    const double b = line.segments()[1].mass() / 1;
+    const double c = line.segments()[2].mass() / 3;
+
+    // Mesh nodes 1..5. Left anchor (a/2) goes to nodes 1-2, right anchor (c/2) to nodes 3-5.
+    const std::vector<double> expected = {a + a / 4, a / 2 + b / 2 + a / 4, b / 2 + c / 2 + c / 6,
+                                          c + c / 6, c + c / 6};
+    CHECK(d.num_nodes() == 5);
+    for (int i = 0; i < d.num_nodes(); ++i) CHECK(close(d.node_mass[i], expected[i]));
+
+    // A single segment: both anchors share the same free nodes, so all nodes get M/3
+    const Line single({Segment(w1, w2, 10.0, 11.0)});
+    const double M = single.segments()[0].mass();
+    const DiscreteLine ds = discretize(single, {4});
+    CHECK(ds.num_nodes() == 3);
+    for (double m : ds.node_mass) CHECK(close(m, M / 3));
+
+    // One element has no free node
+    CHECK(throws([&] { discretize(single, {1}); }));
+}
+
 } // namespace
 
 int main()
@@ -157,6 +185,7 @@ int main()
     test_pull_webbing();
     test_elements_per_segment();
     test_discretize();
+    test_discretize_anchor_mass();
 
     if (failures > 0) {
         std::cerr << failures << " check(s) failed\n";
