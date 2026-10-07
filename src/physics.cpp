@@ -18,8 +18,6 @@ LineModel::LineModel(const DiscreteLine& line,
      node_slackliner_(-1),
      m_(line_.node_mass)
 {
-
-
 }
 
 // TODO move to driver!
@@ -296,10 +294,13 @@ void LineModel::rhs(double t, const Vec& y, Vec& dy) const {
 
 void LineModel::rhs(CRef<Mat2X> q, CRef<Mat2X> v, Ref<Mat2X> dq, Ref<Mat2X> dv) const {
 
-   dq = v; 
-
+   // Compute forces
    assemble(q, dv); // No Jacobian for now
 
+   // Set change in positions based on velocity
+   dq = v; 
+
+   // Set change in velocities based on forces
    Eigen::Map<const Eigen::RowVectorXd> m(m_.data(), m_.size());
    dv.array().rowwise() /= m.array();
 

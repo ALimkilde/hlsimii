@@ -12,17 +12,6 @@ struct Params {
    // Drag and dampening parameters
 };
 
-struct workspace {
-   Vec state; // [x1 y1 x2 y2 ...| vx1 vy1 vx2 vy2 ...]
-};
-
-struct PointMass {
-   int node;
-   double mass;
-
-   PointMass(int n, double m) : node(n), mass(m) {}
-};
-
 class LineModel {
   public:
       explicit LineModel(const DiscreteLine& line, 
