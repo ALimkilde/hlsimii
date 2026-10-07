@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 
-add_library(hlsim_core STATIC src/line.cpp src/mesh.cpp src/config.cpp src/physics.cpp src/linalg.cpp)
+add_library(hlsim_core STATIC src/line.cpp src/mesh.cpp src/config.cpp src/physics.cpp src/linalg.cpp src/fall_simulator.cpp)
 target_include_directories(hlsim_core PUBLIC src)
 target_link_libraries(hlsim_core PUBLIC Eigen3::Eigen)
 
