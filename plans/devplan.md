@@ -45,8 +45,8 @@
 ## 5. Extend Static Mechanics to Dynamic;
 
 - [ ] Refactor assemble to loop over edges.
-- [ ] Make stuff from assemble reusable?
-- [ ] Implement rhs
+- [x] Make stuff from assemble reusable?
+- [x] Implement rhs
 - [ ] Test on leash fall
 - [ ] Extend to backup fall
 
@@ -61,7 +61,6 @@
 - [ ] Run the spring-only dynamics.
 - [ ] Compare against known/simple cases.
 - [ ] Check energy behavior where appropriate.
-- [ ] Establish baseline performance and accuracy.
 
 ## 7. Add drag
 
