@@ -35,8 +35,12 @@ add_executable(test_linalg tests/test_linalg.cpp)
 target_link_libraries(test_linalg PRIVATE hlsim_core)
 add_test(NAME linalg COMMAND test_linalg)
 
+add_executable(test_free_fall tests/test_free_fall.cpp)
+target_link_libraries(test_free_fall PRIVATE hlsim_core)
+add_test(NAME free_fall COMMAND test_free_fall)
+
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-  foreach(target hlsim_core hlsim_yaml hlsimii test_line_mesh test_config test_physics test_linalg)
+  foreach(target hlsim_core hlsim_yaml hlsimii test_line_mesh test_config test_physics test_linalg test_free_fall)
     target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic)
   endforeach()
 endif()
