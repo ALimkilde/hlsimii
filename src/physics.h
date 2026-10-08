@@ -28,8 +28,8 @@ class LineModel {
       void rhs(CRef<Mat2X> q, CRef<Mat2X> v, Ref<Mat2X> dq, Ref<Mat2X> dv) const;  // Internal implementation
                                 
       // === Static Solves === //
-      void residual(const Vec& q, Vec& r, SymmBlockTriMat* jac = nullptr) const;
-      bool static_solver(Vec& q, double tol) const;
+      void residual(const Vec& q_flat, Vec& r_flat, SymmBlockTriMat* jac = nullptr) const;
+      bool static_solver(Vec& q_flat, double tol) const;
       Vec static_solver_initial_guess() const;
 
       bool both_neighboring_edges_slack_flat(const Vec& q) const;

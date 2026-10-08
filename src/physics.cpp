@@ -136,14 +136,14 @@ void LineModel::assemble(CRef<Mat2X> q, Ref<Mat2X> F, SymmBlockTriMat* K) const
 
 }
 
-void LineModel::residual(const Vec& q, Vec& r, SymmBlockTriMat* jac) const {
+void LineModel::residual(const Vec& q_flat, Vec& r_flat, SymmBlockTriMat* jac) const {
 
-   assert(r.size() == q.size());
+   assert(r_flat.size() == q_flat.size());
 
-   Eigen::Map<const Mat2X> Q(q.data(), 2, q.size()/2);
-   Eigen::Map<Mat2X> R(r.data(), 2, r.size()/2);
+   Eigen::Map<const Mat2X> q(q_flat.data(), 2, q_flat.size()/2);
+   Eigen::Map<Mat2X> r(r_flat.data(), 2, r_flat.size()/2);
 
-   assemble(Q, R, jac);
+   assemble(q, r, jac);
 
 }
 
