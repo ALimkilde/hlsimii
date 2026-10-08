@@ -23,8 +23,8 @@ class LineModel {
                          const Params& p);  
 
       // === Dynamic Solves === //
-      // ODE: y input state; dy output rhs = [v | F/m]
-      void rhs(double t, const Vec& y, Vec& dy) const;  // Out facing API
+      // ODE: z = [q | v} input state; dz output rhs = [v | F/m]
+      void rhs(double t, const Vec& z, Vec& dz) const;  // Out facing API
       void rhs(CRef<Mat2X> q, CRef<Mat2X> v, Ref<Mat2X> dq, Ref<Mat2X> dv) const;  // Internal implementation
                                 
       // === Static Solves === //

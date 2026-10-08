@@ -275,18 +275,18 @@ bool LineModel::static_solver(Vec& q, double tol) const {
 }
 
 
-void LineModel::rhs(double t, const Vec& y, Vec& dy) const {
+void LineModel::rhs(double t, const Vec& z, Vec& dz) const {
 
-   assert(y.size() ==  dy.size());
-   assert(&y != &dy);
+   assert(z.size() ==  dz.size());
+   assert(&z != &dz);
 
-   Eigen::Index n_nodes = y.size()/4;
+   Eigen::Index n_nodes = z.size()/4;
 
-   Eigen::Map<const Mat2X> q(y.data(), 2, n_nodes);             // First 2*n_nodes entries
-   Eigen::Map<const Mat2X> v(y.data() + 2*n_nodes, 2, n_nodes); // Last 2*n_nodes entries
+   Eigen::Map<const Mat2X> q(z.data(), 2, n_nodes);             // First 2*n_nodes entries
+   Eigen::Map<const Mat2X> v(z.data() + 2*n_nodes, 2, n_nodes); // Last 2*n_nodes entries
 
-   Eigen::Map<Mat2X> dq(dy.data(), 2, n_nodes);             // First 2*n_nodes entries
-   Eigen::Map<Mat2X> dv(dy.data() + 2*n_nodes, 2, n_nodes); // Last 2*n_nodes entries
+   Eigen::Map<Mat2X> dq(dz.data(), 2, n_nodes);             // First 2*n_nodes entries
+   Eigen::Map<Mat2X> dv(dz.data() + 2*n_nodes, 2, n_nodes); // Last 2*n_nodes entries
 
    rhs(q, v, dq, dv);
 
