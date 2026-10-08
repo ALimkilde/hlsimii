@@ -100,6 +100,7 @@ void LineModel::assemble(CRef<Mat2X> q, Ref<Mat2X> F, SymmBlockTriMat* K) const
 {
    const Eigen::Index num_edges = line_.num_elements();
    const Eigen::Index num_nodes = q.cols();
+   const Vec2& g = params_.gravity;
 
    assert(num_edges > 1);
 
@@ -120,7 +121,7 @@ void LineModel::assemble(CRef<Mat2X> q, Ref<Mat2X> F, SymmBlockTriMat* K) const
    for (Eigen::Index i = 0; i < num_nodes; ++i){
       next_edge_force = edge_force(next_edge(i), edge_vector(q,next_edge(i)), next_edge_Kptr);
       F.col(i) = next_edge_force - last_edge_force 
-                  + params_.gravity * m_[i];
+                  + m_[i] * g;
 
       last_edge_force = next_edge_force;
 

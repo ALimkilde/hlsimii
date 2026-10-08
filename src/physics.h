@@ -5,9 +5,12 @@
 #include "mesh.h"
 #include "linalg.h"
 
-struct Params {
-   Vec2 gravity{0.0, -9.81};
+namespace constants {
+   inline const Vec2 gravity{0.0, -9.81};
+}
 
+struct Params {
+   Vec2 gravity = constants::gravity;
    double newton_tol = 1e-5;
    // Drag and dampening parameters
 };
