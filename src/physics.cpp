@@ -21,12 +21,11 @@ LineModel::LineModel(const DiscreteLine& line,
 }
 
 // TODO move to driver!
-int LineModel::nearest_node(const Vec& q, const double x_coor) const {
+int LineModel::nearest_node(const Vec& q_flat, const double x_coor) const {
 
    // Nearest free node in x to the slackliner
-   Eigen::Map<const Mat2X> Q(q.data(), 2, q.size() / 2);
    Eigen::Index nearest;
-   (Q.row(0).array() - x_coor).abs().minCoeff(&nearest);
+   (as_const_mat2x(q_flat).row(0).array() - x_coor).abs().minCoeff(&nearest);
    return static_cast<int>(nearest);
 
 }
@@ -140,10 +139,7 @@ void LineModel::residual(const Vec& q_flat, Vec& r_flat, SymmBlockTriMat* jac) c
 
    assert(r_flat.size() == q_flat.size());
 
-   Eigen::Map<const Mat2X> q(q_flat.data(), 2, q_flat.size()/2);
-   Eigen::Map<Mat2X> r(r_flat.data(), 2, r_flat.size()/2);
-
-   assemble(q, r, jac);
+   assemble(as_const_mat2x(q_flat), as_mat2x(r_flat), jac);
 
 }
 
@@ -171,17 +167,17 @@ Vec LineModel::static_solver_initial_guess() const {
    double total = 0.0;
    for (double le : l) total += le;
 
-   Vec q(2 * num_nodes);
-   Eigen::Map<Mat2X> Q(q.data(), 2, num_nodes);
+   Vec q_flat(2 * num_nodes);
+   Eigen::Map<Mat2X> q = as_mat2x(q_flat);
 
    // Straight chord: stretch the chain uniformly to fit the span
    if (D >= stretch * total) {
       double s = 0.0;
       for (Eigen::Index i = 0; i < num_nodes; i++) {
          s += l[i];
-         Q.col(i) = anchor_left_ + (s / total) * chord;
+         q.col(i) = anchor_left_ + (s / total) * chord;
       }
-      return q;
+      return q_flat;
    }
 
    // V shape: kink at the node closest to half the rest length
@@ -202,17 +198,16 @@ Vec LineModel::static_solver_initial_guess() const {
    double s = 0.0;
    for (Eigen::Index i = 0; i < num_nodes; i++) {
       s += stretch * l[i];
-      Q.col(i) = (i <= kink) ? Vec2(anchor_left_ + (s / A) * (apex - anchor_left_))
+      q.col(i) = (i <= kink) ? Vec2(anchor_left_ + (s / A) * (apex - anchor_left_))
                              : Vec2(apex + ((s - A) / B) * (anchor_right_ - apex));
    }
-   return q;
+   return q_flat;
 }
 
 
-bool LineModel::both_neighboring_edges_slack_flat(const Vec& q) const {
+bool LineModel::both_neighboring_edges_slack_flat(const Vec& q_flat) const {
 
-   Eigen::Map<const Mat2X> Q(q.data(), 2, q.size()/2);
-   return both_neighboring_edges_slack(Q);
+   return both_neighboring_edges_slack(as_const_mat2x(q_flat));
 
 }
 
@@ -280,15 +275,10 @@ void LineModel::rhs(double t, const Vec& z, Vec& dz) const {
    assert(z.size() ==  dz.size());
    assert(&z != &dz);
 
-   Eigen::Index n_nodes = z.size()/4;
+   ConstStateView s = const_state_view(z);
+   StateView ds = state_view(dz);
 
-   Eigen::Map<const Mat2X> q(z.data(), 2, n_nodes);             // First 2*n_nodes entries
-   Eigen::Map<const Mat2X> v(z.data() + 2*n_nodes, 2, n_nodes); // Last 2*n_nodes entries
-
-   Eigen::Map<Mat2X> dq(dz.data(), 2, n_nodes);             // First 2*n_nodes entries
-   Eigen::Map<Mat2X> dv(dz.data() + 2*n_nodes, 2, n_nodes); // Last 2*n_nodes entries
-
-   rhs(q, v, dq, dv);
+   rhs(s.q, s.v, ds.q, ds.v);
 
 }
 

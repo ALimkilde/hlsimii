@@ -30,21 +30,21 @@ double total_mass(const Line& line)
 // One row per node, anchors included. T [N] is the tension in the edge to the
 // right of the node, so the right anchor gets nan. m_point [kg] is the point mass
 // on the node: point_mass on free node point_node, 0 elsewhere (point_node = -1: none).
-void write_shape_csv(const std::string& path, const LineModel& model, const Vec& q,
+void write_shape_csv(const std::string& path, const LineModel& model, const Vec& q_flat,
                      Vec2 anchor_left, Vec2 anchor_right,
                      int point_node = -1, double point_mass = 0.0)
 {
     std::ofstream out(path);
     if (!out) throw std::runtime_error("cannot write " + path);
 
-    Eigen::Map<const Mat2X> Q(q.data(), 2, q.size() / 2);
-    const Eigen::Index num_nodes = Q.cols();
+    Eigen::Map<const Mat2X> q = as_const_mat2x(q_flat);
+    const Eigen::Index num_nodes = q.cols();
 
     out << "x,y,T,m_point\n";
     for (Eigen::Index i = -1; i <= num_nodes; ++i) {
-        const Vec2 p = (i == -1) ? anchor_left : (i == num_nodes) ? anchor_right : Vec2(Q.col(i));
+        const Vec2 p = (i == -1) ? anchor_left : (i == num_nodes) ? anchor_right : Vec2(q.col(i));
         out << p.x() << "," << p.y() << ",";
-        if (i < num_nodes) out << model.edge_force(i + 1, model.edge_vector(Q, i + 1)).norm();
+        if (i < num_nodes) out << model.edge_force(i + 1, model.edge_vector(q, i + 1)).norm();
         else out << "nan";
         out << "," << (i == point_node ? point_mass : 0.0) << "\n";
     }

@@ -5,6 +5,29 @@
 #include "mesh.h"
 #include "linalg.h"
 
+// Views of the ODE state z = [q | v]. q and v are 2 x n_nodes each.
+struct StateView {
+   Eigen::Map<Mat2X> q;
+   Eigen::Map<Mat2X> v;
+};
+
+struct ConstStateView {
+   Eigen::Map<const Mat2X> q;
+   Eigen::Map<const Mat2X> v;
+};
+
+inline StateView state_view(Ref<Vec> z) {
+   assert(z.size() % 4 == 0);
+   const Eigen::Index half = z.size() / 2;
+   return { as_mat2x(z.head(half)), as_mat2x(z.tail(half)) };
+}
+
+inline ConstStateView const_state_view(CRef<Vec> z) {
+   assert(z.size() % 4 == 0);
+   const Eigen::Index half = z.size() / 2;
+   return { as_const_mat2x(z.head(half)), as_const_mat2x(z.tail(half)) };
+}
+
 namespace constants {
    inline const Vec2 gravity{0.0, -9.81};
 }
@@ -36,7 +59,7 @@ class LineModel {
       bool both_neighboring_edges_slack(CRef<Mat2X> q) const;
 
       // === Tools to place slackliner ===
-      int nearest_node(const Vec& q, const double x_coor) const;
+      int nearest_node(const Vec& q_flat, const double x_coor) const;
       void place_slackliner(const int node, double mass) const;
       void remove_slackliner() const;
 
