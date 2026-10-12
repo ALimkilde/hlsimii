@@ -68,7 +68,10 @@ class LineModel {
       Vec2 edge_force(Eigen::Index e, const Vec2& dq, Mat2* K = nullptr) const; 
 
       void assemble(CRef<Mat2X> q, Ref<Mat2X> F, SymmBlockTriMat* K = nullptr) const; // Compute net forces in F and Jac in K
-
+                                                                                      //
+      double get_mass(const int i) const {
+         return m_[i];
+      }
   private:
       const DiscreteLine line_;
       Vec2 anchor_left_, anchor_right_;

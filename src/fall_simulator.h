@@ -29,33 +29,31 @@ class FallSimulator {
       // ====== Logging ====== 
       // Called once per time step
       // Returns False if we should stop..
-      bool call_back(const double t, CRef<Mat2X> q, CRef<Mat2X> v, CRef<Mat2X> forces) const;
+      bool call_back(const double t, CRef<Mat2X> q, CRef<Mat2X> v) const;
+      bool call_back_flat(const double t, CRef<Vec> z) const;
 
       // ====== Events ====== 
 
       // Detects when leash gets taut by checking freefall_ state y-only distance to node position
       // Event happens when sign of the function changes
-      double event_leash_taut(const double t, const double y_slackliner) const;
+      double event_leash_taut(const double t, CRef<Mat2X> q) const;
       double event_leash_taut_flat(const double t, CRef<Vec> z) const;
 
       // Modifies velocities to preserve momentum
-      void inelastic_collision(Ref<Mat2X> v);
-      void inelastic_collision_flat(Ref<Vec> z);
+      void inelastic_collision(double const t, Ref<Mat2X> v);
 
       // Detects when to go back to free fall
       // Event happens when sign of the function changes
-      double event_leash_loose(const double y_force_leash) const;
+      double event_leash_loose(const double y_acc_leash) const;
       double event_leash_loose_flat(const double t, CRef<Vec> z) const;
 
       // Free's the slackliner from the line and start free fall
-      void free_slackliner(CRef<Vec2> q_slackliner, CRef<Vec2> v_slackliner);
-      void free_slackliner_flat(CRef<Vec> z); 
+      void free_slackliner(const double t, CRef<Mat2X> q, CRef<Mat2X> v);
 
 
 
 
    private:
-      // TODO; what should be const or not (members and methods)
       LineModel linemodel_;
       FreeFall freefall_;
       const SlacklinerConfig slackliner_;

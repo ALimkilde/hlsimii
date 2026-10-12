@@ -13,11 +13,24 @@ class FreeFall {
       void set_initial_conditions(const double t0, const double y0, const double vy0) { t0_ = t0; y0_ = y0; vy0_ = vy0; }
 
       FallState get_state(const double t) const {
-         const double delta_t = t - t0_;
-         const double vy = gy_ * delta_t + vy0_;
-         const double y = 0.5 * gy_ * delta_t*delta_t + vy0_ * delta_t + y0_;
+         const double vy = get_vy(t);
+         const double y = get_y(t);
          return FallState{y, vy};
       }
+
+      double get_y(const double t) const {
+         const double delta_t = t - t0_;
+         return 0.5 * gy_ * delta_t*delta_t + vy0_ * delta_t + y0_;
+      }
+      
+      double get_vy(const double t) const {
+         const double delta_t = t - t0_;
+         return gy_ * delta_t + vy0_;
+      }
+
+      double get_gy() const { return gy_; }
+          
+
 
    private:
       const double gy_;
