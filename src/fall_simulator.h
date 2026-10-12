@@ -27,12 +27,11 @@ struct SimData {
 
 class FallSimulator {
    public:
-      explicit FallSimulator(const LineModel& linemodel, const FreeFall& freefall, const SlacklinerConfig& slackliner, Eigen::Index node_slackliner);
+      explicit FallSimulator(const LineModel& linemodel, const SlacklinerConfig& slackliner, Eigen::Index node_slackliner);
 
       // Does time integration, detects events and restarts;
-      // t will be overwritten with new time, q new positions and v new velocities
       // Frames are recorded every dt_out
-      SimData simulate(double& t, const double tend, const double dt_out, Ref<Mat2X> q, Ref<Mat2X> v);
+      SimData simulate(const double tend, const double dt_out, CRef<Mat2X> q0, CRef<Mat2X> v0);
 
       // Harness height: free fall while the leash is slack, hanging l_leash below the node while taut
       double y_slackliner(const double t, CRef<Mat2X> q) const;

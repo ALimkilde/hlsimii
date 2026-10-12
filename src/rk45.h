@@ -13,7 +13,7 @@
 // rk45() is a convenience wrapper that runs integrate() with a DP5 stepper.
 
 struct RKOptions {
-   double rtol = 1e-6, atol = 1e-9;
+   double rtol = 1e-5, atol = 1e-5;
    double h0 = 1e-4, hmax = std::numeric_limits<double>::infinity();
    int max_steps = 1'000'000;
    double dt_out = 0.0;   // Output on the global grid t_k = k * dt_out; <= 0 disables output

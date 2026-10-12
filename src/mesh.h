@@ -6,6 +6,7 @@
 
 // The computational model: a chain of E springs (elements) between E+1 point masses (nodes).
 // Nodes 0 and E are the anchors; they are not stored. Free node i (0..E-2) is mesh node i+1.
+// TODO; Move anchors here?
 struct DiscreteLine {
     std::vector<double> k_main;    // spring constant of the main line [N/m], size E
     std::vector<double> k_backup;  // spring constant of the backup [N/m], size E

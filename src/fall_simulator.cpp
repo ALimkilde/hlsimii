@@ -1,58 +1,51 @@
 #include "fall_simulator.h"
 #include "rk45.h"
+#include "progress_bar.h"
 #include <iostream>
 
-FallSimulator::FallSimulator(const LineModel& linemodel, const FreeFall& freefall, const SlacklinerConfig& slackliner, Eigen::Index node_slackliner)
+FallSimulator::FallSimulator(const LineModel& linemodel, const SlacklinerConfig& slackliner, Eigen::Index node_slackliner)
    : linemodel_(linemodel), 
-     freefall_(freefall), 
+     freefall_(FreeFall(Params{}.gravity.y(), 0.0, 0.0, 0.0)), 
      slackliner_(slackliner), 
      node_slackliner_(node_slackliner)
 {
 }
 
 // TODO; warn if leash is lower than l_leg!
-SimData FallSimulator::simulate(double& t, const double tend, const double dt_out, Ref<Mat2X> q, Ref<Mat2X> v)
+SimData FallSimulator::simulate(const double tend, const double dt_out, CRef<Mat2X> q0, CRef<Mat2X> v0)
 {
   // Initialize
   SimData data;
   bool attached = false;
 
-  // Get initial state
-  // Static shape with the slackliner standing on the node nearest x_coor (picked from the unloaded shape)
-  // TODO; Move newton tol
-  // TODO; Move this code to experiment.cpp at some point
-  const double tol = Params{}.newton_tol;
-  Vec q0 = linemodel_.static_solver_initial_guess();
-  if (!linemodel_.static_solver(q0, tol))
-     std::cerr << "warning: unloaded static solver did not converge\n";
-
-  node_slackliner_ = linemodel_.nearest_node(q0, slackliner_.x_coor);
-  linemodel_.place_slackliner(node_slackliner_, slackliner_.m);
-  if (!linemodel_.static_solver(q0, tol))
-     std::cerr << "warning: loaded static solver did not converge\n";
-
   // Slackliner leaves the line: the line starts at rest in the loaded shape,
   // the slackliner starts at rest with the harness l_leg above the standing node
   linemodel_.remove_slackliner();
-  const double y0 = as_const_mat2x(q0)(1, node_slackliner_) + slackliner_.l_leg;
-  freefall_.set_initial_conditions(t, y0, 0.0);
+  const double y0 = q0(1, node_slackliner_) + slackliner_.l_leg;
+  const double t0 = 0.0;
+  freefall_.set_initial_conditions(t0, y0, 0.0);
 
   // z = [q | v]
   Vec z(2 * q0.size());
-  z.head(q0.size()) = q0;
-  z.tail(q0.size()).setZero();
+  StateView state = state_view(z);
+  state.q = q0;
+  state.v = v0;
 
   data.node_slackliner = node_slackliner_;
 
   RKOptions opt;
   opt.dt_out = dt_out;
 
+  ProgressBar bar;
+
   auto rhs    = [&](double t, CRef<Vec> z, Ref<Vec> dz) { linemodel_.rhs(t, z, dz); };
-  auto output_obs = [&](double t, CRef<Vec> z) { return on_output(t, z, data); };
+  auto output_obs = [&](double t, CRef<Vec> z) { bar.update((t - t0) / (tend - t0)); return on_output(t, z, data); };
   auto step_obs   = [&](double t, CRef<Vec> z) { return on_step(t, z, data); };
   auto events = [&](double t, CRef<Vec> z, Ref<Vec> g) {
      g[0] = attached ? event_leash_loose_flat(t, z) : event_leash_taut_flat(t, z);
   };
+
+  double t = t0;
 
   // Record the initial state here
   on_output(t, z, data);
