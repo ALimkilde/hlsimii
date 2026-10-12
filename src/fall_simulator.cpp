@@ -1,4 +1,6 @@
 #include "fall_simulator.h"
+#include "rk45.h"
+#include <iostream>
 
 FallSimulator::FallSimulator(const LineModel& linemodel, const FreeFall& freefall, const SlacklinerConfig& slackliner, Eigen::Index node_slackliner)
    : linemodel_(linemodel), 
@@ -11,18 +13,95 @@ FallSimulator::FallSimulator(const LineModel& linemodel, const FreeFall& freefal
 // TODO; warn if leash is lower than l_leg!
 SimData FallSimulator::simulate(double& t, const double tend, Ref<Mat2X> q, Ref<Mat2X> v)
 {
+  // Initialize
+  SimData data;
+  bool attached = false;
+
+  // Get initial state
+  // Static shape with the slackliner standing on the node nearest x_coor (picked from the unloaded shape)
+  // TODO; Move newton tol
+  // TODO; Move this code to experiment.cpp at some point
+  const double tol = Params{}.newton_tol;
+  Vec q0 = linemodel_.static_solver_initial_guess();
+  if (!linemodel_.static_solver(q0, tol))
+     std::cerr << "warning: unloaded static solver did not converge\n";
+
+  node_slackliner_ = linemodel_.nearest_node(q0, slackliner_.x_coor);
+  linemodel_.place_slackliner(node_slackliner_, slackliner_.m);
+  if (!linemodel_.static_solver(q0, tol))
+     std::cerr << "warning: loaded static solver did not converge\n";
+
+  // Slackliner leaves the line: the line starts at rest in the loaded shape,
+  // the slackliner starts at rest with the harness l_leg above the standing node
+  linemodel_.remove_slackliner();
+  const double y0 = as_const_mat2x(q0)(1, node_slackliner_) + slackliner_.l_leg;
+  freefall_.set_initial_conditions(t, y0, 0.0);
+
+  // z = [q | v]
+  Vec z(2 * q0.size());
+  z.head(q0.size()) = q0;
+  z.tail(q0.size()).setZero();
+
+  RKOptions opt;
+
+  auto rhs    = [&](double t, CRef<Vec> z, Ref<Vec> dz) { linemodel_.rhs(t, z, dz); };
+  auto output_obs = [&](double t, CRef<Vec> z) { return on_output(t, z, data); };
+  auto step_obs   = [&](double t, CRef<Vec> z) { return on_step(t, z, data); };
+  auto events = [&](double t, CRef<Vec> z, Ref<Vec> g) {
+     g[0] = attached ? event_leash_loose_flat(t, z) : event_leash_taut_flat(t, z);
+  };
+
+  // Record the initial state here
+  on_output(t, z, data);
+
+  while (t < tend) {
+     RKResult r = rk45(rhs, events, 1, output_obs, step_obs, t, tend, z, opt);
+     t = r.t;
+
+     StateView s = state_view(z);
+
+     if (r.reason != StopReason::Event) break;
+     if (!attached) inelastic_collision(t, s.v); else free_slackliner(t, s.q, s.v);
+     attached = !attached;
+  }
+
+  return data;
 }
 
-bool FallSimulator::call_back(const double t, CRef<Mat2X> q, CRef<Mat2X> v) const
-{
-   // Implement this
-   return false; 
-}
-
-bool FallSimulator::call_back_flat(const double t, CRef<Vec> z) const
+bool FallSimulator::on_output(const double t, CRef<Vec> z, SimData& data) const
 {
    ConstStateView s = const_state_view(z);
-   return call_back(t, s.q, s.v);
+
+   data.position.emplace_back(s.q);
+   data.velocities.emplace_back(s.v);
+
+   return true; // Never stop on output
+}
+
+bool FallSimulator::on_step(const double t, CRef<Vec> z, SimData& data) const
+{
+   ConstStateView s = const_state_view(z);
+   const Eigen::Index num_nodes = s.q.cols();
+
+   // Lowest points
+   data.lowest_point_webbing = std::min(data.lowest_point_webbing, s.q.row(1).minCoeff());
+
+   const double y_slackliner = std::max(freefall_.get_y(t), s.q(1, node_slackliner_) - slackliner_.l_leash);
+   data.lowest_point_slackliner = std::min(data.lowest_point_slackliner, y_slackliner);
+
+   // TODO; Move this to physics
+   for (Eigen::Index e = 0; e <= num_nodes; ++e) {
+      const double T = linemodel_.edge_force(e, linemodel_.edge_vector(s.q, e)).norm();
+      data.peak_force_webbing = std::max(data.peak_force_webbing, T);
+   }
+   const double T_left  = linemodel_.edge_force(0, linemodel_.edge_vector(s.q, 0)).norm();
+   const double T_right = linemodel_.edge_force(num_nodes, linemodel_.edge_vector(s.q, num_nodes)).norm();
+   data.peak_force_anchors[0] = std::max(data.peak_force_anchors[0], T_left);
+   data.peak_force_anchors[1] = std::max(data.peak_force_anchors[1], T_right);
+
+   // TODO peak_force_leash and peak_force_webbing_at_leash_fall: need to know if the slackliner is attached
+
+   return true; // Never stop on step
 }
 
 double FallSimulator::event_leash_taut(const double t, CRef<Mat2X> q) const

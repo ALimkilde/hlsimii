@@ -270,10 +270,9 @@ bool LineModel::static_solver(Vec& q, double tol) const {
 }
 
 
-void LineModel::rhs(double t, const Vec& z, Vec& dz) const {
+void LineModel::rhs(double t, CRef<Vec> z, Ref<Vec> dz) const {
 
    assert(z.size() ==  dz.size());
-   assert(&z != &dz);
 
    ConstStateView s = const_state_view(z);
    StateView ds = state_view(dz);

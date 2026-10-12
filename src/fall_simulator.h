@@ -16,6 +16,8 @@ struct SimData {
    double lowest_point_webbing;
 
    // Some kind of logging of state of line + slackliner to plot later
+   std::vector<Mat2X> position;
+   std::vector<Mat2X> velocities;
 };
 
 class FallSimulator {
@@ -27,10 +29,10 @@ class FallSimulator {
       SimData simulate(double& t, const double tend, Ref<Mat2X> q, Ref<Mat2X> v);
 
       // ====== Logging ====== 
+      // Called once per output time.
+      bool on_output(const double t, CRef<Vec> z, SimData& data) const;
       // Called once per time step
-      // Returns False if we should stop..
-      bool call_back(const double t, CRef<Mat2X> q, CRef<Mat2X> v) const;
-      bool call_back_flat(const double t, CRef<Vec> z) const;
+      bool on_step(const double t, CRef<Vec> z, SimData& data) const;
 
       // ====== Events ====== 
 
