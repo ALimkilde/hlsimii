@@ -1,5 +1,7 @@
 # pragma once
 
+#include <array>
+#include <limits>
 #include <vector>
 #include "eigen_include.h"
 #include "free_fall.h"
@@ -7,17 +9,20 @@
 #include "config.h"
 
 struct SimData {
-   double peak_force_leash;
-   double peak_force_webbing;
-   double peak_force_webbing_at_leash_fall; // /= peak_force_webbing => report shockload
-   std::array<double, 2> peak_force_anchors;
+   double peak_force_leash = 0.0;
+   double peak_force_webbing = 0.0;
+   double peak_force_webbing_at_leash_fall = 0.0; // /= peak_force_webbing => report shockload
+   std::array<double, 2> peak_force_anchors = {0.0, 0.0};
 
-   double lowest_point_slackliner;
-   double lowest_point_webbing;
+   double lowest_point_slackliner = std::numeric_limits<double>::infinity();
+   double lowest_point_webbing = std::numeric_limits<double>::infinity();
 
-   // Some kind of logging of state of line + slackliner to plot later
+   // Frames at the output times: line state and slackliner (harness) height
+   Eigen::Index node_slackliner = -1;
+   std::vector<double> time;
    std::vector<Mat2X> position;
    std::vector<Mat2X> velocities;
+   std::vector<double> y_slackliner;
 };
 
 class FallSimulator {
@@ -26,7 +31,11 @@ class FallSimulator {
 
       // Does time integration, detects events and restarts;
       // t will be overwritten with new time, q new positions and v new velocities
-      SimData simulate(double& t, const double tend, Ref<Mat2X> q, Ref<Mat2X> v);
+      // Frames are recorded every dt_out
+      SimData simulate(double& t, const double tend, const double dt_out, Ref<Mat2X> q, Ref<Mat2X> v);
+
+      // Harness height: free fall while the leash is slack, hanging l_leash below the node while taut
+      double y_slackliner(const double t, CRef<Mat2X> q) const;
 
       // ====== Logging ====== 
       // Called once per output time.

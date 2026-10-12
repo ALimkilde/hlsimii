@@ -11,7 +11,7 @@ FallSimulator::FallSimulator(const LineModel& linemodel, const FreeFall& freefal
 }
 
 // TODO; warn if leash is lower than l_leg!
-SimData FallSimulator::simulate(double& t, const double tend, Ref<Mat2X> q, Ref<Mat2X> v)
+SimData FallSimulator::simulate(double& t, const double tend, const double dt_out, Ref<Mat2X> q, Ref<Mat2X> v)
 {
   // Initialize
   SimData data;
@@ -42,7 +42,10 @@ SimData FallSimulator::simulate(double& t, const double tend, Ref<Mat2X> q, Ref<
   z.head(q0.size()) = q0;
   z.tail(q0.size()).setZero();
 
+  data.node_slackliner = node_slackliner_;
+
   RKOptions opt;
+  opt.dt_out = dt_out;
 
   auto rhs    = [&](double t, CRef<Vec> z, Ref<Vec> dz) { linemodel_.rhs(t, z, dz); };
   auto output_obs = [&](double t, CRef<Vec> z) { return on_output(t, z, data); };
@@ -72,8 +75,10 @@ bool FallSimulator::on_output(const double t, CRef<Vec> z, SimData& data) const
 {
    ConstStateView s = const_state_view(z);
 
+   data.time.push_back(t);
    data.position.emplace_back(s.q);
    data.velocities.emplace_back(s.v);
+   data.y_slackliner.push_back(y_slackliner(t, s.q));
 
    return true; // Never stop on output
 }
@@ -86,8 +91,7 @@ bool FallSimulator::on_step(const double t, CRef<Vec> z, SimData& data) const
    // Lowest points
    data.lowest_point_webbing = std::min(data.lowest_point_webbing, s.q.row(1).minCoeff());
 
-   const double y_slackliner = std::max(freefall_.get_y(t), s.q(1, node_slackliner_) - slackliner_.l_leash);
-   data.lowest_point_slackliner = std::min(data.lowest_point_slackliner, y_slackliner);
+   data.lowest_point_slackliner = std::min(data.lowest_point_slackliner, y_slackliner(t, s.q));
 
    // TODO; Move this to physics
    for (Eigen::Index e = 0; e <= num_nodes; ++e) {
@@ -102,6 +106,13 @@ bool FallSimulator::on_step(const double t, CRef<Vec> z, SimData& data) const
    // TODO peak_force_leash and peak_force_webbing_at_leash_fall: need to know if the slackliner is attached
 
    return true; // Never stop on step
+}
+
+double FallSimulator::y_slackliner(const double t, CRef<Mat2X> q) const
+{
+   // While free, the slackliner is above the taut-leash position; while attached, the stale
+   // free fall parabola has fallen below it. So the max is the slackliner position in both phases.
+   return std::max(freefall_.get_y(t), q(1, node_slackliner_) - slackliner_.l_leash);
 }
 
 double FallSimulator::event_leash_taut(const double t, CRef<Mat2X> q) const
