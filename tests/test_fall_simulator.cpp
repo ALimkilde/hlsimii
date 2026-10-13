@@ -56,9 +56,19 @@ FallSimulator simulator_with_slackliner_at(Eigen::Index node)
     return FallSimulator(m, slackliner(), node);
 }
 
-// z = [q | v] with q given column-wise as (x0, y0, x1, y1).
-// v is filled with nonzero junk so that reading the wrong half of z shows up.
+// z = [q | v] with q given column-wise as (x0, y0, x1, y1) and the nodes at rest.
+// Zero velocities keep Kelvin-Voigt damping out of the force checks; reading v instead of q
+// would see zeros and fail them.
 Vec make_z(double x0, double y0, double x1, double y1)
+{
+    Vec z(8);
+    z << x0, y0, x1, y1,
+         0.0, 0.0, 0.0, 0.0;
+    return z;
+}
+
+// Same, with nonzero junk velocities so that reading the wrong half of z shows up
+Vec make_z_moving(double x0, double y0, double x1, double y1)
 {
     Vec z(8);
     z << x0, y0, x1, y1,
@@ -144,6 +154,25 @@ void test_flat_line_pulls_down_node1()
     CHECK(sim.event_leash_loose_flat(0.0, z) > 0.0);
 }
 
+// The event sees the node velocities through Kelvin-Voigt damping. Node 1 at (2, -0.5) as in
+// test_flat_line_pulls_up_node1; edge 1 is at rest length, so only edge 2 holds node 1 up.
+// Moving node 1 up makes edge 2 retract, which lowers its tension: the leash is closer to loose.
+// Moving it up fast clips edge 2 to no tension, so node 1 falls freely: exactly the threshold.
+void test_flat_sees_damping_node1()
+{
+    const FallSimulator sim = simulator_with_slackliner_at(1);
+    Vec z = make_z(1.0, -0.5, 2.0, -0.5);
+    const double at_rest = sim.event_leash_loose_flat(0.0, z);
+
+    z[7] = 0.1;    // vy of node 1
+    const double slow = sim.event_leash_loose_flat(0.0, z);
+    CHECK(at_rest < slow);
+    CHECK(slow < 0.0);
+
+    z[7] = 50.0;
+    CHECK(near_zero(sim.event_leash_loose_flat(0.0, z)));
+}
+
 // The flat wrapper agrees with the core function fed the acceleration computed by hand.
 // Node 0 at (1, -0.5): edge 0 has length sqrt(1.25), stretch sqrt(1.25) - 1, k = 100,
 // unit vector towards the left anchor (-1, 0.5)/sqrt(1.25). Edge 1 is at rest length.
@@ -167,7 +196,7 @@ void test_flat_matches_core()
 void test_free_starts_at_taut_threshold()
 {
     FallSimulator sim = simulator_with_slackliner_at(1);
-    const Vec z = make_z(1.0, -0.5, 2.0, -0.7);
+    const Vec z = make_z_moving(1.0, -0.5, 2.0, -0.7);
     const ConstStateView s = const_state_view(z);
 
     const double t0 = 3.0;
@@ -177,11 +206,11 @@ void test_free_starts_at_taut_threshold()
 
 // The slackliner leaves with the node's y-velocity. With the ring held still, after dt
 // the slackliner has moved vy*dt + 0.5*gy*dt^2, and the taut event equals minus that.
-// Node 1 has vy = 11 in make_z, so the slackliner is still rising: event negative.
+// Node 1 has vy = 11 in make_z_moving, so the slackliner is still rising: event negative.
 void test_free_takes_node_velocity()
 {
     FallSimulator sim = simulator_with_slackliner_at(1);
-    const Vec z = make_z(1.0, -0.5, 2.0, -0.7);
+    const Vec z = make_z_moving(1.0, -0.5, 2.0, -0.7);
     const ConstStateView s = const_state_view(z);
 
     const double t0 = 3.0;
@@ -221,6 +250,7 @@ int main()
     test_flat_line_pulls_down_node0();
     test_flat_line_pulls_up_node1();
     test_flat_line_pulls_down_node1();
+    test_flat_sees_damping_node1();
     test_flat_matches_core();
     test_free_starts_at_taut_threshold();
     test_free_takes_node_velocity();

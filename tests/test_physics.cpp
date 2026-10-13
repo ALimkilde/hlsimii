@@ -1,4 +1,4 @@
-// Tests for LineModel::edge_vector, edge_force, assemble, residual, both_neighboring_edges_slack
+// Tests for LineModel::edge_vector, edge_force (incl. Kelvin-Voigt damping), assemble, residual, both_neighboring_edges_slack
 // place/remove_slackliner and rhs.
 // Uses a CHECK macro instead of assert so the tests also run in Release builds.
 
@@ -23,6 +23,10 @@ int failures = 0;
     } while (0)
 
 bool close(const Vec2& a, const Vec2& b) { return (a - b).norm() <= 1e-9 * std::max(1.0, b.norm()); }
+
+// Zero velocities switch Kelvin-Voigt damping off, so the forces are the pure spring forces
+const Vec2 dv_rest = Vec2::Zero();
+Mat2X at_rest(const Mat2X& q) { return Mat2X::Zero(2, q.cols()); }
 
 // Three edges, main rest length 1.0 and backup rest length 1.2.
 // The main stiffness differs per edge, so a mixed-up edge index gives a wrong force.
@@ -65,26 +69,26 @@ void test_edge_force()
     const LineModel m = model_with_anchors({0.0, 0.0}, {3.0, 0.0});
 
     // Shorter than both rest lengths: slack
-    CHECK(close(m.edge_force(0, {0.9, 0.0}), Vec2(0.0, 0.0)));
+    CHECK(close(m.edge_force(0, {0.9, 0.0}, dv_rest), Vec2(0.0, 0.0)));
     // Exactly at the main rest length: still zero
-    CHECK(close(m.edge_force(0, {1.0, 0.0}), Vec2(0.0, 0.0)));
+    CHECK(close(m.edge_force(0, {1.0, 0.0}, dv_rest), Vec2(0.0, 0.0)));
     // Main stretched 0.1, backup slack: 100 * 0.1
-    CHECK(close(m.edge_force(0, {1.1, 0.0}), Vec2(10.0, 0.0)));
+    CHECK(close(m.edge_force(0, {1.1, 0.0}, dv_rest), Vec2(10.0, 0.0)));
     // Exactly at the backup rest length: main only, 100 * 0.2
-    CHECK(close(m.edge_force(0, {1.2, 0.0}), Vec2(20.0, 0.0)));
+    CHECK(close(m.edge_force(0, {1.2, 0.0}, dv_rest), Vec2(20.0, 0.0)));
     // Both stretched: 100 * 0.5 + 50 * 0.3
-    CHECK(close(m.edge_force(0, {1.5, 0.0}), Vec2(65.0, 0.0)));
+    CHECK(close(m.edge_force(0, {1.5, 0.0}, dv_rest), Vec2(65.0, 0.0)));
 
     // The direction follows the edge; the magnitude does not change
-    CHECK(close(m.edge_force(0, {0.0, 1.1}), Vec2(0.0, 10.0)));
+    CHECK(close(m.edge_force(0, {0.0, 1.1}, dv_rest), Vec2(0.0, 10.0)));
     const Vec2 dir(0.6, 0.8);
-    CHECK(close(m.edge_force(0, 1.5 * dir), 65.0 * dir));
+    CHECK(close(m.edge_force(0, 1.5 * dir, dv_rest), 65.0 * dir));
     // Reversing the edge flips the force
-    CHECK(close(m.edge_force(0, -1.5 * dir), -65.0 * dir));
+    CHECK(close(m.edge_force(0, -1.5 * dir, dv_rest), -65.0 * dir));
 
     // The edge index selects the stiffness: 200 * 0.1 and 300 * 0.1
-    CHECK(close(m.edge_force(1, {1.1, 0.0}), Vec2(20.0, 0.0)));
-    CHECK(close(m.edge_force(2, {1.1, 0.0}), Vec2(30.0, 0.0)));
+    CHECK(close(m.edge_force(1, {1.1, 0.0}, dv_rest), Vec2(20.0, 0.0)));
+    CHECK(close(m.edge_force(2, {1.1, 0.0}, dv_rest), Vec2(30.0, 0.0)));
 }
 
 // Finite-difference check of the edge Jacobian K = dF/d(dq).
@@ -93,7 +97,7 @@ void test_edge_force()
 void check_edge_jacobian(const LineModel& m, Eigen::Index e, const Vec2& dq, const char* name)
 {
     Mat2 K;
-    m.edge_force(e, dq, &K);
+    m.edge_force(e, dq, dv_rest, &K);
 
     // A generic direction: not along the edge, so the geometric term is exercised
     const Vec2 d = Vec2(0.3, -0.7).normalized();
@@ -105,7 +109,7 @@ void check_edge_jacobian(const LineModel& m, Eigen::Index e, const Vec2& dq, con
     double h = 1e-1;
     double prev_err = 0.0, order = 0.0;
     for (int i = 0; i < 6; ++i, h /= 2.0) {
-        const Vec2 fd = (m.edge_force(e, dq + h * d) - m.edge_force(e, dq - h * d)) / (2.0 * h);
+        const Vec2 fd = (m.edge_force(e, dq + h * d, dv_rest) - m.edge_force(e, dq - h * d, dv_rest)) / (2.0 * h);
         const double err = (fd - Kd).norm();
 
         std::printf("  %9.2e  %10.3e", h, err);
@@ -133,8 +137,110 @@ void test_edge_jacobian()
 
     // Slack edge: no force and no stiffness
     Mat2 K = Mat2::Ones();
-    m.edge_force(0, 0.9 * dir, &K);
+    m.edge_force(0, 0.9 * dir, dv_rest, &K);
     CHECK(K.isZero());
+}
+
+// === Kelvin-Voigt damping ===
+// Damping only acts while an edge retracts: the tension becomes T + c * dlen/dt with c = tau_KV * k,
+// clipped so it never goes below 0. dlen/dt = dv . u, with dv = vb - va.
+
+// Same as model_with_anchors, with a round tau_KV so the damping forces below are easy to check
+LineModel damped_model(Vec2 left, Vec2 right)
+{
+    Params p;
+    p.gravity.setZero();
+    p.tau_KV = 0.1;
+    return LineModel(three_edge_line(), left, right, p);
+}
+
+// Edge 0 at length 1.5: T = 100 * 0.5 + 50 * 0.3 = 65 and c = 0.1 * (100 + 50) = 15
+void test_edge_force_damping()
+{
+    const LineModel m = damped_model({0.0, 0.0}, {3.0, 0.0});
+    const Vec2 u(0.6, 0.8);
+    const Vec2 dq = 1.5 * u;
+
+    // Stretching: no damping, whatever the speed
+    CHECK(close(m.edge_force(0, dq, 2.0 * u), 65.0 * u));
+    CHECK(close(m.edge_force(0, dq, 100.0 * u), 65.0 * u));
+    // Retracting at 2 m/s: 65 - 15 * 2
+    CHECK(close(m.edge_force(0, dq, -2.0 * u), 35.0 * u));
+    // Retracting fast: 65 - 15 * 10 < 0, clipped to no tension (webbing cannot push)
+    CHECK(close(m.edge_force(0, dq, -10.0 * u), Vec2(0.0, 0.0)));
+    // Sideways motion does not change the length, so no damping
+    const Vec2 u_perp(-0.8, 0.6);
+    CHECK(close(m.edge_force(0, dq, 3.0 * u_perp), 65.0 * u));
+    // Slack edge: no force, even when retracting
+    CHECK(close(m.edge_force(0, 0.9 * u, -2.0 * u), Vec2(0.0, 0.0)));
+    // Main only, edge 2 at length 1.1: T = 300 * 0.1 = 30, c = 0.1 * 300 = 30, so 30 - 30 * 0.5
+    CHECK(close(m.edge_force(2, 1.1 * u, -0.5 * u), 15.0 * u));
+}
+
+// For many velocities dv, compares the damped force f(dv) to the spring force f(0) on one edge:
+//  - damping never adds energy: the power it puts into the two nodes, -(f(dv) - f(0)) . dv, is <= 0
+//  - the tension never goes negative: f(dv) . u >= 0
+//  - stretching is never damped: dv . u > 0 gives f(dv) == f(0)
+void test_damping_dissipates()
+{
+    const LineModel m = damped_model({0.0, 0.0}, {3.0, 0.0});
+    int checked = 0;
+
+    for (const double len : {1.1, 1.5}) {               // main only, main + backup
+        for (int a = 0; a < 8; ++a) {                     // edge direction
+            const double th = 0.8 * a;
+            const Vec2 u(std::cos(th), std::sin(th));
+            const Vec2 f0 = m.edge_force(0, len * u, dv_rest);
+
+            for (int b = 0; b < 16; ++b) {                // velocity direction
+                for (const double speed : {0.01, 0.3, 2.0, 50.0}) {
+                    const double phi = 0.4 * b;
+                    const Vec2 dv = speed * Vec2(std::cos(phi), std::sin(phi));
+                    const Vec2 f = m.edge_force(0, len * u, dv);
+
+                    CHECK(-(f - f0).dot(dv) <= 1e-12);
+                    CHECK(f.dot(u) >= -1e-12);
+                    if (dv.dot(u) > 0.0) CHECK(close(f, f0));
+                    ++checked;
+                }
+            }
+        }
+    }
+    std::cout << "damping dissipation check: " << checked << " velocities\n";
+}
+
+// The force is continuous where an edge turns from stretching to retracting (dlen/dt = 0):
+// a small retraction speed eps changes the force by only c * eps
+void test_damping_continuous()
+{
+    const LineModel m = damped_model({0.0, 0.0}, {3.0, 0.0});
+    const Vec2 u(0.6, 0.8);
+    const Vec2 dq = 1.5 * u;   // T = 65, c = 15
+    const Vec2 f0 = m.edge_force(0, dq, dv_rest);
+
+    for (const double eps : {1e-3, 1e-6, 1e-9}) {
+        CHECK(close(m.edge_force(0, dq, eps * u), f0));
+        CHECK(std::abs((f0 - m.edge_force(0, dq, -eps * u)).norm() - 15.0 * eps) <= 1e-9);
+    }
+}
+
+// assemble passes each edge its velocity difference, with the anchors standing still.
+// Every edge stretched 0.1 (spring forces 10, 20, 30, c = 10, 20, 30).
+// Node 0 moves left and node 1 moves right:
+//   edge 0: dv = v0 - 0  = -0.5 -> retracting, 10 - 10 * 0.5 = 5
+//   edge 1: dv = v1 - v0 = +1.0 -> stretching, 20
+//   edge 2: dv = 0 - v1  = -0.5 -> retracting, 30 - 30 * 0.5 = 15
+void test_assemble_damping()
+{
+    const LineModel m = damped_model({0.0, 0.0}, {3.3, 0.0});
+    Mat2X q(2, 2), v(2, 2), F(2, 2);
+    q << 1.1, 2.2,
+         0.0, 0.0;
+    v << -0.5, 0.5,
+          0.0, 0.0;
+    m.assemble(q, v, F);
+    CHECK(close(F.col(0), Vec2(15.0, 0.0)));    // 20 - 5
+    CHECK(close(F.col(1), Vec2(-5.0, 0.0)));    // 15 - 20
 }
 
 // Net force on each interior node from assemble(). Edge e pulls its left node towards its right node
@@ -154,7 +260,7 @@ void test_assemble()
         q << 1.0, 2.0,
              0.0, 0.0;
         Mat2X F = fresh_F();
-        m.assemble(q, F);
+        m.assemble(q, at_rest(q), F);
         CHECK(F.isZero());
     }
 
@@ -165,7 +271,7 @@ void test_assemble()
         q << 1.1, 2.2,
              0.0, 0.0;
         Mat2X F = fresh_F();
-        m.assemble(q, F);
+        m.assemble(q, at_rest(q), F);
         CHECK(close(F.col(0), Vec2(10.0, 0.0)));   // 20 - 10
         CHECK(close(F.col(1), Vec2(10.0, 0.0)));   // 30 - 20
     }
@@ -178,7 +284,7 @@ void test_assemble()
         q << 1.1, 2.6,
              0.0, 0.0;
         Mat2X F = fresh_F();
-        m.assemble(q, F);
+        m.assemble(q, at_rest(q), F);
         CHECK(close(F.col(0), Vec2(105.0, 0.0)));    // 115 - 10
         CHECK(close(F.col(1), Vec2(-115.0, 0.0)));   // 0 - 115
     }
@@ -191,7 +297,7 @@ void test_assemble()
         q << 0.0, 1.0,
              1.1, 1.1;
         Mat2X F = fresh_F();
-        m.assemble(q, F);
+        m.assemble(q, at_rest(q), F);
         CHECK(close(F.col(0), Vec2(0.0, -10.0)));   // 0 - (0, 10)
         CHECK(close(F.col(1), Vec2(0.0, -30.0)));   // (0, -30) - 0
     }
@@ -254,13 +360,13 @@ void test_assemble_jacobian()
     SymmBlockTriMat K(4);
     poison(K);
     Mat2X F(2, 4);
-    m.assemble(z.q, F, &K);
+    m.assemble(z.q, at_rest(z.q), F, &K);
     const Mat J = K.to_dense();
     CHECK(J.allFinite());
 
     // Forces must not depend on whether the Jacobian was requested
     Mat2X F_no_K(2, 4);
-    m.assemble(z.q, F_no_K);
+    m.assemble(z.q, at_rest(z.q), F_no_K);
     CHECK(F_no_K == F);
 
     std::cout << "assembled Jacobian FD check (zigzag, 4 free nodes)\n";
@@ -275,8 +381,8 @@ void test_assemble_jacobian()
             qp.data()[j] += h;
             qm.data()[j] -= h;
             Mat2X Fp(2, 4), Fm(2, 4);
-            m.assemble(qp, Fp);
-            m.assemble(qm, Fm);
+            m.assemble(qp, at_rest(qp), Fp);
+            m.assemble(qm, at_rest(qm), Fm);
             J_fd.col(j) = Eigen::Map<const Vec>((Fp - Fm).eval().data(), n) / (2.0 * h);
         }
         const double err = (J_fd - J).cwiseAbs().maxCoeff();
@@ -306,7 +412,7 @@ void test_assemble_gravity()
     Mat2X F(2, 4);
     SymmBlockTriMat K(4);
     poison(K);
-    m.assemble(q, F, &K);
+    m.assemble(q, at_rest(q), F, &K);
 
     CHECK(close(F.col(0), Vec2(0.0, -11.0)));
     CHECK(close(F.col(1), Vec2(0.0, -13.0)));
@@ -338,7 +444,7 @@ void test_assemble_single_node()
     Mat2X F(2, 1);
     SymmBlockTriMat K(1);
     poison(K);
-    m.assemble(q, F, &K);
+    m.assemble(q, at_rest(q), F, &K);
 
     CHECK(close(F.col(0), Vec2(10.0, -10.0)));   // (20 - 10, 1.0 * -10)
 
@@ -358,7 +464,7 @@ void test_residual()
 
     Mat2X F(2, 4);
     SymmBlockTriMat K(4);
-    m.assemble(z.q, F, &K);
+    m.assemble(z.q, at_rest(z.q), F, &K);
 
     Vec q(8);
     for (int i = 0; i < 4; ++i) {
@@ -424,11 +530,11 @@ void test_place_slackliner()
     q << 0.8, 1.6, 2.4, 3.2,
          0.0, 0.0, 0.0, 0.0;   // edges 0.8 long: all slack
     Mat2X F_bare(2, 4), F(2, 4);
-    m.assemble(q, F_bare);
+    m.assemble(q, at_rest(q), F_bare);
 
     for (int i = 0; i < 4; ++i) {
         m.place_slackliner(i, mass);
-        m.assemble(q, F);
+        m.assemble(q, at_rest(q), F);
         for (int j = 0; j < 4; ++j) {
             const Vec2 extra = (j == i) ? Vec2(mass * p.gravity) : Vec2::Zero();
             if (!close(F.col(j), Vec2(F_bare.col(j) + extra)))
@@ -439,10 +545,10 @@ void test_place_slackliner()
 
     // Removing restores the bare line, and a second remove is harmless
     m.remove_slackliner();
-    m.assemble(q, F);
+    m.assemble(q, at_rest(q), F);
     CHECK(F == F_bare);
     m.remove_slackliner();
-    m.assemble(q, F);
+    m.assemble(q, at_rest(q), F);
     CHECK(F == F_bare);
 }
 
@@ -473,7 +579,7 @@ void test_rhs_layout()
     CHECK(dy.allFinite());
 
     Mat2X F(2, 4);
-    m.assemble(z.q, F);
+    m.assemble(z.q, v, F);   // same velocities as rhs, so damping matches
 
     for (int i = 0; i < 4; ++i) {
         CHECK(dy[2 * i] == v(0, i));
@@ -545,6 +651,10 @@ int main()
     test_edge_vector();
     test_edge_force();
     test_edge_jacobian();
+    test_edge_force_damping();
+    test_damping_dissipates();
+    test_damping_continuous();
+    test_assemble_damping();
     test_assemble();
     test_assemble_jacobian();
     test_assemble_gravity();

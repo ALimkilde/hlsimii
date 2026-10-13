@@ -34,6 +34,7 @@ namespace constants {
 
 struct Params {
    Vec2 gravity = constants::gravity;
+   double tau_KV = 0.23;
    double newton_tol = 1e-5;
    // Drag and dampening parameters
 };
@@ -65,9 +66,12 @@ class LineModel {
 
       // === Edge forces === //
       Vec2 edge_vector(CRef<Mat2X> q, Eigen::Index e) const;
-      Vec2 edge_force(Eigen::Index e, const Vec2& dq, Mat2* K = nullptr) const; 
+      Vec2 edge_force(Eigen::Index e, const Vec2& dq, const Vec2& dv, Mat2* K = nullptr) const; 
 
-      void assemble(CRef<Mat2X> q, Ref<Mat2X> F, SymmBlockTriMat* K = nullptr) const; // Compute net forces in F and Jac in K
+      // === KV dampening === //
+      Vec2 vel_vector(CRef<Mat2X> v, Eigen::Index e) const;
+
+      void assemble(CRef<Mat2X> q, CRef<Mat2X> v, Ref<Mat2X> F, SymmBlockTriMat* K = nullptr) const; // Compute net forces in F and Jac in K
                                                                                       //
       double get_mass(const int i) const {
          return m_[i];

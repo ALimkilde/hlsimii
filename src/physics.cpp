@@ -48,8 +48,6 @@ void LineModel::remove_slackliner() const {
    m_[node_slackliner_] = line_.node_mass[node_slackliner_];
 }
 
-
-
 // dq = qb - qa for edge e, which runs from node e-1 to node e.
 // Node -1 is anchor_left_ and node q.cols() is anchor_right_.
 Vec2 LineModel::edge_vector(CRef<Mat2X> q, Eigen::Index e) const {
@@ -63,21 +61,36 @@ Vec2 LineModel::edge_vector(CRef<Mat2X> q, Eigen::Index e) const {
    return qb - qa;
 }
 
-  Vec2 LineModel::edge_force(Eigen::Index e, const Vec2& dq, Mat2* K) const
+Vec2 LineModel::vel_vector(CRef<Mat2X> v, Eigen::Index e) const {
+
+   const Eigen::Index num_nodes = v.cols();
+   assert(e >= 0 && e <= num_nodes);
+
+   const Vec2 va = (e == 0)         ? Vec2::Zero()  : Vec2(v.col(e - 1));
+   const Vec2 vb = (e == num_nodes) ? Vec2::Zero() : Vec2(v.col(e));
+
+   return vb - va;
+}
+
+  Vec2 LineModel::edge_force(Eigen::Index e, const Vec2& dq, const Vec2& dv, Mat2* K) const
 {
    const double len = dq.norm();
    const double s_main = len - line_.l_main[e];
    const double s_backup = len - line_.l_backup[e];
  
    double T = 0.0, dT = 0.0;   // tension, and dT/dlen
+   double c_KV = 0.0;          // Kelvin Voight Dampening constant
    if (s_main > 0.0)   { 
       T += line_.k_main[e] * s_main;   
       dT += line_.k_main[e]; 
+      c_KV += line_.k_main[e]; 
    } 
    if (s_backup > 0.0) { 
       T += line_.k_backup[e] * s_backup; 
       dT += line_.k_backup[e]; 
+      c_KV += line_.k_backup[e]; 
    }
+   c_KV *= params_.tau_KV; // c_KV = tau_KV * k
      
    // === Jacobian ===
    if (T == 0.0) {                 // slack edge
@@ -90,12 +103,21 @@ Vec2 LineModel::edge_vector(CRef<Mat2X> q, Eigen::Index e) const {
       Mat2 uuT = u * u.transpose();
       *K = T/len * (Mat2::Identity() - uuT) + dT * uuT;
    }
-   
-   return T * u;
+
+   // Kelvin Voight Dampening
+   double feKV = c_KV * dv.dot(u);
+   // Clip:
+   if (feKV <= -T) {
+      feKV = -T;
+   } else if (feKV >= 0) { // Don't dampen stretching elements
+      feKV = 0;
+   }
+
+   return (T + feKV) * u;
 }
 
 // Fills net forces into F (and Jacobian if argument present)
-void LineModel::assemble(CRef<Mat2X> q, Ref<Mat2X> F, SymmBlockTriMat* K) const
+void LineModel::assemble(CRef<Mat2X> q, CRef<Mat2X> v, Ref<Mat2X> F, SymmBlockTriMat* K) const
 {
    const Eigen::Index num_edges = line_.num_elements();
    const Eigen::Index num_nodes = q.cols();
@@ -112,13 +134,13 @@ void LineModel::assemble(CRef<Mat2X> q, Ref<Mat2X> F, SymmBlockTriMat* K) const
       next_edge_Kptr = &next_edge_K;
    }
 
-   Vec2 last_edge_force = edge_force(last_edge(0), edge_vector(q,0), last_edge_Kptr);   
+   Vec2 last_edge_force = edge_force(last_edge(0), edge_vector(q,0), vel_vector(v,0), last_edge_Kptr);   
    Vec2 next_edge_force;
 
    // Todo; refactor an assemble over edges
 
    for (Eigen::Index i = 0; i < num_nodes; ++i){
-      next_edge_force = edge_force(next_edge(i), edge_vector(q,next_edge(i)), next_edge_Kptr);
+      next_edge_force = edge_force(next_edge(i), edge_vector(q,next_edge(i)), vel_vector(v, next_edge(i)), next_edge_Kptr);
       F.col(i) = next_edge_force - last_edge_force 
                   + m_[i] * g;
 
@@ -139,7 +161,9 @@ void LineModel::residual(const Vec& q_flat, Vec& r_flat, SymmBlockTriMat* jac) c
 
    assert(r_flat.size() == q_flat.size());
 
-   assemble(as_const_mat2x(q_flat), as_mat2x(r_flat), jac);
+   Vec v_flat = Vec::Zero(q_flat.size()); // Zero velocity to avoid dampening
+
+   assemble(as_const_mat2x(q_flat), as_const_mat2x(v_flat), as_mat2x(r_flat), jac);
 
 }
 
@@ -218,7 +242,7 @@ bool LineModel::both_neighboring_edges_slack(CRef<Mat2X> q) const {
    bool last_edge_slack = false;
 
    for (Eigen::Index e = 0; e < num_edges; e++) {
-      double T = edge_force(e, edge_vector(q,e)).norm();
+      double T = edge_force(e, edge_vector(q,e), Vec2::Zero()).norm();
 
       bool this_edge_slack = T <= 1E-12;
 
@@ -285,7 +309,7 @@ void LineModel::rhs(double t, CRef<Vec> z, Ref<Vec> dz) const {
 void LineModel::rhs(CRef<Mat2X> q, CRef<Mat2X> v, Ref<Mat2X> dq, Ref<Mat2X> dv) const {
 
    // Compute forces
-   assemble(q, dv); // No Jacobian for now
+   assemble(q, v, dv); // No Jacobian for now
 
    // Set change in positions based on velocity
    dq = v; 

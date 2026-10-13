@@ -88,11 +88,11 @@ bool FallSimulator::on_step(const double t, CRef<Vec> z, SimData& data) const
 
    // TODO; Move this to physics
    for (Eigen::Index e = 0; e <= num_nodes; ++e) {
-      const double T = linemodel_.edge_force(e, linemodel_.edge_vector(s.q, e)).norm();
+      const double T = linemodel_.edge_force(e, linemodel_.edge_vector(s.q, e), Vec2::Zero()).norm();
       data.peak_force_webbing = std::max(data.peak_force_webbing, T);
    }
-   const double T_left  = linemodel_.edge_force(0, linemodel_.edge_vector(s.q, 0)).norm();
-   const double T_right = linemodel_.edge_force(num_nodes, linemodel_.edge_vector(s.q, num_nodes)).norm();
+   const double T_left  = linemodel_.edge_force(0, linemodel_.edge_vector(s.q, 0), Vec2::Zero()).norm();
+   const double T_right = linemodel_.edge_force(num_nodes, linemodel_.edge_vector(s.q, num_nodes), Vec2::Zero()).norm();
    data.peak_force_anchors[0] = std::max(data.peak_force_anchors[0], T_left);
    data.peak_force_anchors[1] = std::max(data.peak_force_anchors[1], T_right);
 
@@ -151,7 +151,7 @@ double FallSimulator::event_leash_loose_flat(const double t, CRef<Vec> z) const
    // TODO Can be optimized to only compute acceleration of specific node.
    Mat2X F(2, N);
    // TODO Add velocity here once drag and KV is added
-   linemodel_.assemble(s.q, F); // Compute forces
+   linemodel_.assemble(s.q, s.v, F); // Compute forces
 
    const double y_acc_leash = F(1, node_slackliner_) / linemodel_.get_mass(node_slackliner_);
 
@@ -164,6 +164,7 @@ void FallSimulator::free_slackliner(const double t, CRef<Mat2X> q, CRef<Mat2X> v
    linemodel_.remove_slackliner();
 
    double y_slackliner = q(1, node_slackliner_) - slackliner_.l_leash;
+   const double nudge = 1e-12;
 
-   freefall_.set_initial_conditions(t, y_slackliner , v(1, node_slackliner_));
+   freefall_.set_initial_conditions(t, y_slackliner+nudge, v(1, node_slackliner_));
 }
