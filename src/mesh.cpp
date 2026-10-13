@@ -6,12 +6,10 @@
 #include <stdexcept>
 
 // DiscreteLine
-
 int DiscreteLine::num_elements() const { return static_cast<int>(k_main.size()); }
 int DiscreteLine::num_nodes() const { return static_cast<int>(node_mass.size()); }
 
 // Meshing
-
 std::vector<int> elements_per_segment(const Line& line, double h)
 {
     if (h <= 0.0)
@@ -82,4 +80,14 @@ DiscreteLine discretize(const Line& line, const std::vector<int>& n_per_segment)
     // Keep only the free nodes 1..E-1
     d.node_mass.assign(lumped.begin() + 1, lumped.end() - 1);
     return d;
+}
+
+DiscreteLine with_broken_mainline(DiscreteLine line, std::vector<bool> break_segments) {
+
+   for( int e = 0; e < line.num_elements(); e++) {
+      if (break_segments[line.element_segment[e]]) line.k_main[e] = 0.0;
+   }
+
+   return line;
+
 }

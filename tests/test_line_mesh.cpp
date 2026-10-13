@@ -1,4 +1,4 @@
-// Tests for pull_webbing, elements_per_segment and discretize.
+// Tests for pull_webbing, elements_per_segment, discretize and with_broken_mainline.
 // Uses a CHECK macro instead of assert so the tests also run in Release builds.
 
 #include <algorithm>
@@ -120,7 +120,6 @@ void test_discretize()
     CHECK(static_cast<int>(d.l_main.size()) == num_el);
     CHECK(static_cast<int>(d.l_backup.size()) == num_el);
     CHECK(static_cast<int>(d.element_segment.size()) == num_el);
-    CHECK(!d.break_mainline);
 
     double node_mass_sum = 0.0;
     for (double m : d.node_mass) node_mass_sum += m;
@@ -178,6 +177,28 @@ void test_discretize_anchor_mass()
     CHECK(throws([&] { discretize(single, {1}); }));
 }
 
+// Only the main line springs of the flagged segments are zeroed, and the input is left untouched
+void test_with_broken_mainline()
+{
+    const DiscreteLine d = discretize(three_segment_line(), {2, 1, 3});
+    const DiscreteLine broken = with_broken_mainline(d, {true, false, true});
+
+    CHECK(broken.num_elements() == d.num_elements());
+    for (int e = 0; e < d.num_elements(); ++e) {
+        const bool flagged = d.element_segment[e] != 1;
+        CHECK(broken.k_main[e] == (flagged ? 0.0 : d.k_main[e]));
+        CHECK(d.k_main[e] > 0.0); // input not modified
+    }
+    CHECK(broken.k_backup == d.k_backup);
+    CHECK(broken.l_main == d.l_main);
+    CHECK(broken.l_backup == d.l_backup);
+    CHECK(broken.node_mass == d.node_mass);
+    CHECK(broken.element_segment == d.element_segment);
+
+    // Nothing flagged leaves the line unchanged
+    CHECK(with_broken_mainline(d, {false, false, false}).k_main == d.k_main);
+}
+
 } // namespace
 
 int main()
@@ -186,6 +207,7 @@ int main()
     test_elements_per_segment();
     test_discretize();
     test_discretize_anchor_mass();
+    test_with_broken_mainline();
 
     if (failures > 0) {
         std::cerr << failures << " check(s) failed\n";
