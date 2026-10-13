@@ -1,9 +1,11 @@
 #include "experiments.h"
 #include "physics.h"
+#include "mesh.h"
 #include <iostream>
+#include <algorithm>
 
 
-SimData Experiments::simulate_leash_fall(SimConfig& cfg, DiscreteLine& dline, const double t_end, const double dt_out) {
+FallResults Experiments::simulate(const SimConfig& cfg, const DiscreteLine& dline, const double t_end, const double dt_out, const std::vector<bool>& break_segments) {
 
    const Vec2 anchor_left(0.0, 0.0), anchor_right(cfg.L, 0.0);
    const Params params{};
@@ -27,6 +29,20 @@ SimData Experiments::simulate_leash_fall(SimConfig& cfg, DiscreteLine& dline, co
    Vec v0(q0.size());
    v0.setZero();
 
-   return fallsim.simulate(t_end, dt_out, as_const_mat2x(q0), as_const_mat2x(v0));
+   FallResults fallresults{};
 
+   fallresults.leash = fallsim.simulate(t_end, dt_out, as_const_mat2x(q0), as_const_mat2x(v0));
+
+   const bool any_break = std::find(break_segments.begin(), break_segments.end(), true) != break_segments.end();
+   if ( any_break ) {
+
+      LineModel broken_model(with_broken_mainline(dline, break_segments), anchor_left, anchor_right, params);
+
+      FallSimulator fallsim_broken(broken_model, cfg.slackliner, node_slackliner);
+
+      fallresults.backup = fallsim_broken.simulate(t_end, dt_out, as_const_mat2x(q0), as_const_mat2x(v0));
+      fallresults.has_backup_fall = true;
+   }
+
+   return fallresults;
  }

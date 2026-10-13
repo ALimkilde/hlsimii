@@ -28,5 +28,5 @@ std::vector<int> elements_per_segment(const Line& line, double h);
 DiscreteLine discretize(const Line& line, const std::vector<int>& n_per_segment);
 
 // Sets k_main = 0 for broken edges
-DiscreteLine with_broken_mainline(DiscreteLine line, std::vector<bool> break_segments);
+DiscreteLine with_broken_mainline(DiscreteLine line, const std::vector<bool>& break_segments);
 

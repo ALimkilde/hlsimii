@@ -82,7 +82,7 @@ DiscreteLine discretize(const Line& line, const std::vector<int>& n_per_segment)
     return d;
 }
 
-DiscreteLine with_broken_mainline(DiscreteLine line, std::vector<bool> break_segments) {
+DiscreteLine with_broken_mainline(DiscreteLine line, const std::vector<bool>& break_segments) {
 
    for( int e = 0; e < line.num_elements(); e++) {
       if (break_segments[line.element_segment[e]]) line.k_main[e] = 0.0;
