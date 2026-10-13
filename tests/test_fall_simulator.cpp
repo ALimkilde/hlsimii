@@ -49,9 +49,9 @@ SlacklinerConfig slackliner()
 }
 
 // FallSimulator copies the LineModel, so the slackliner is placed before construction
-FallSimulator simulator_with_slackliner_at(Eigen::Index node)
+FallSimulator simulator_with_slackliner_at(Eigen::Index node, const Params& p = Params{})
 {
-    const LineModel m(three_edge_line(), {0.0, 0.0}, {3.0, 0.0}, Params{});
+    const LineModel m(three_edge_line(), {0.0, 0.0}, {3.0, 0.0}, p);
     m.place_slackliner(static_cast<int>(node), slackliner().m);
     return FallSimulator(m, slackliner(), node);
 }
@@ -158,9 +158,12 @@ void test_flat_line_pulls_down_node1()
 // test_flat_line_pulls_up_node1; edge 1 is at rest length, so only edge 2 holds node 1 up.
 // Moving node 1 up makes edge 2 retract, which lowers its tension: the leash is closer to loose.
 // Moving it up fast clips edge 2 to no tension, so node 1 falls freely: exactly the threshold.
+// Air drag is switched off so that only the damping is tested.
 void test_flat_sees_damping_node1()
 {
-    const FallSimulator sim = simulator_with_slackliner_at(1);
+    Params no_drag;
+    no_drag.rho_air = 0.0;
+    const FallSimulator sim = simulator_with_slackliner_at(1, no_drag);
     Vec z = make_z(1.0, -0.5, 2.0, -0.5);
     const double at_rest = sim.event_leash_loose_flat(0.0, z);
 

@@ -1,4 +1,4 @@
-// Tests for LineModel::edge_vector, edge_force (incl. Kelvin-Voigt damping), assemble, residual, both_neighboring_edges_slack
+// Tests for LineModel::edge_vector, edge_force (incl. Kelvin-Voigt damping), edge_drag, assemble, residual, both_neighboring_edges_slack
 // place/remove_slackliner and rhs.
 // Uses a CHECK macro instead of assert so the tests also run in Release builds.
 
@@ -644,6 +644,102 @@ void test_rhs_static_equilibrium()
     m.remove_slackliner();
 }
 
+// Round drag parameters and no gravity, so the drag forces below can be checked by hand.
+// For three_edge_line, every edge has c = 0.5 * rho * C_d * w * (l_main + l_backup) = 0.5 * 0.1 * 2.2 = 0.11
+Params drag_params()
+{
+    Params p;
+    p.gravity.setZero();
+    p.rho_air = 1.0;
+    p.c_drag = 1.0;
+    p.webbing_width = 0.1;
+    return p;
+}
+
+// edge_drag(e, dq, v) = -c |v_perp| v_perp, where v_perp is the part of v normal to the edge
+void test_edge_drag()
+{
+    const LineModel m(three_edge_line(), {0.0, 0.0}, {3.0, 0.0}, drag_params());
+
+    // Horizontal edge moving down at 2 m/s: c * 2 * 2 = 0.44 upwards
+    CHECK(close(m.edge_drag(0, {1.0, 0.0}, {0.0, -2.0}), Vec2(0.0, 0.44)));
+    // Sliding along the edge adds nothing
+    CHECK(close(m.edge_drag(0, {1.0, 0.0}, {3.0, -2.0}), Vec2(0.0, 0.44)));
+    CHECK(close(m.edge_drag(0, {1.0, 0.0}, {3.0, 0.0}), Vec2(0.0, 0.0)));
+    // Diagonal edge, v = (2, 0): v_perp = (1, -1), |v_perp| = sqrt(2)
+    const double s = 0.11 * std::sqrt(2.0);
+    CHECK(close(m.edge_drag(0, {1.0, 1.0}, {2.0, 0.0}), Vec2(-s, s)));
+}
+
+// A straight line falling broadside. The edges are at rest length, so only gravity and drag act.
+// Each node gets half the drag of both its edges: 0.11 v^2 in total. With m = 1 and g = 10 the
+// forces balance at the terminal velocity v_t = sqrt(10 / 0.11).
+void test_assemble_drag_terminal_velocity()
+{
+    Params p = drag_params();
+    p.gravity = Vec2(0.0, -10.0);
+    const LineModel m(three_edge_line(), {0.0, 0.0}, {3.0, 0.0}, p);
+
+    Mat2X q(2, 2);
+    q << 1.0, 2.0,
+         0.0, 0.0;
+    Mat2X F(2, 2);
+    const double v_t = std::sqrt(10.0 / 0.11);
+
+    auto falling_at = [](double speed) {
+        Mat2X v(2, 2);
+        v << 0.0, 0.0,
+             -speed, -speed;
+        return v;
+    };
+
+    m.assemble(q, falling_at(v_t), F);
+    CHECK(close(F.col(0), Vec2(0.0, 0.0)));
+    CHECK(close(F.col(1), Vec2(0.0, 0.0)));
+
+    // Slower than v_t it still accelerates down, faster it is braked
+    m.assemble(q, falling_at(0.5 * v_t), F);
+    CHECK(F(1, 0) < 0.0 && F(1, 1) < 0.0);
+    m.assemble(q, falling_at(2.0 * v_t), F);
+    CHECK(F(1, 0) > 0.0 && F(1, 1) > 0.0);
+}
+
+// The same 3 m line split into N equal edges, all at rest length
+DiscreteLine uniform_line(int N)
+{
+    DiscreteLine d;
+    d.k_main.assign(N, 100.0);
+    d.k_backup.assign(N, 50.0);
+    d.l_main.assign(N, 3.0 / N);
+    d.l_backup.assign(N, 3.6 / N);
+    d.node_mass.assign(N - 1, 1.0);
+    d.element_segment.assign(N, 0);
+    return d;
+}
+
+// The total drag on a line must not depend on the mesh. The whole line moving down at 2 m/s
+// feels 0.5 * rho * C_d * w * (3.0 + 3.6) * 2^2 = 1.32 N. The outer half of each anchor edge
+// pushes on the anchor, not on a free node, so the free nodes get (1 - 1/N) of it.
+void test_drag_mesh_refinement()
+{
+    const double full_drag = 1.32;
+
+    for (int N : {3, 6, 12, 24}) {
+        const LineModel m(uniform_line(N), {0.0, 0.0}, {3.0, 0.0}, drag_params());
+
+        Mat2X q = Mat2X::Zero(2, N - 1);
+        for (int i = 0; i < N - 1; ++i) q(0, i) = 3.0 * (i + 1) / N;
+        Mat2X v = Mat2X::Zero(2, N - 1);
+        v.row(1).setConstant(-2.0);
+
+        Mat2X F(2, N - 1);
+        m.assemble(q, v, F);
+
+        const double total = F.row(1).sum();
+        CHECK(std::abs(total - (1.0 - 1.0 / N) * full_drag) <= 1e-12);
+    }
+}
+
 } // namespace
 
 int main()
@@ -665,6 +761,9 @@ int main()
     test_rhs_layout();
     test_rhs_free_fall();
     test_rhs_static_equilibrium();
+    test_edge_drag();
+    test_assemble_drag_terminal_velocity();
+    test_drag_mesh_refinement();
 
     if (failures > 0) {
         std::cerr << failures << " check(s) failed\n";

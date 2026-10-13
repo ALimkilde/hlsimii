@@ -35,6 +35,9 @@ namespace constants {
 struct Params {
    Vec2 gravity = constants::gravity;
    double tau_KV = 0.23;
+   double c_drag = 1.15; 
+   double webbing_width = 0.025; 
+   double rho_air = 1.225; // Density of air
    double newton_tol = 1e-5;
    // Drag and dampening parameters
 };
@@ -69,7 +72,11 @@ class LineModel {
       Vec2 edge_force(Eigen::Index e, const Vec2& dq, const Vec2& dv, Mat2* K = nullptr) const; 
 
       // === KV dampening === //
-      Vec2 vel_vector(CRef<Mat2X> v, Eigen::Index e) const;
+      // Implementation of KV is in edge_force
+      Vec2 vel_vector(CRef<Mat2X> v, Eigen::Index e) const; 
+
+      // === drag === //
+      Vec2 edge_drag(Eigen::Index e, const Vec2& dq, const Vec2& v) const;
 
       void assemble(CRef<Mat2X> q, CRef<Mat2X> v, Ref<Mat2X> F, SymmBlockTriMat* K = nullptr) const; // Compute net forces in F and Jac in K
                                                                                       //

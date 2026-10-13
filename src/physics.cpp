@@ -77,6 +77,8 @@ Vec2 LineModel::vel_vector(CRef<Mat2X> v, Eigen::Index e) const {
  
    double T = 0.0, dT = 0.0;   // tension, and dT/dlen
    double c_KV = 0.0;          // Kelvin Voight Dampening constant
+                               //
+   // TODO; optimization idea; this check doesn't require square root of dq.norm() unless true
    if (s_main > 0.0)   { 
       T += line_.k_main[e] * s_main;   
       dT += line_.k_main[e]; 
@@ -113,6 +115,18 @@ Vec2 LineModel::vel_vector(CRef<Mat2X> v, Eigen::Index e) const {
    return (T + feKV) * u;
 }
 
+// TODO; optimization possible; let this method reuse u, len, uuT, I-uuT.
+Vec2 LineModel::edge_drag(Eigen::Index e, const Vec2& dq, const Vec2& v) const {
+   const double len = dq.norm();
+   const Vec2 u = dq / len; // Unit vector
+   const Vec2 vtilde = v - v.dot(u)*u; // Orthogonal part of v
+
+   const double c = 0.5 * params_.rho_air * params_.c_drag * params_.webbing_width * (line_.l_main[e] + line_.l_backup[e]);
+
+   return - c * vtilde * vtilde.norm();
+
+}
+
 void LineModel::assemble(CRef<Mat2X> q, CRef<Mat2X> v, Ref<Mat2X> F, SymmBlockTriMat* K) const
 {
    const Eigen::Index num_edges = line_.num_elements();
@@ -139,9 +153,11 @@ void LineModel::assemble(CRef<Mat2X> q, CRef<Mat2X> v, Ref<Mat2X> F, SymmBlockTr
       const bool a_free = (a >= 0);          // is a a free node
       const bool b_free = (b < num_nodes);   // is b a free node
 
-      Vec2 f = edge_force(e, edge_vector(q, e), vel_vector(v, e), edge_Kptr);
-      if (a_free) F.col(a) += f;   // Last node
-      if (b_free) F.col(b) -= f; // Next node
+      const Vec2 dq = edge_vector(q, e);
+      const Vec2 f = edge_force(e, dq, vel_vector(v, e), edge_Kptr);
+
+      if (a_free) F.col(a) += f + 0.5 * edge_drag(e, dq, v.col(a));
+      if (b_free) F.col(b) += 0.5 * edge_drag(e, dq, v.col(b)) - f;
 
       if (K) {
          if (a_free) K->diag(a) -= edge_K;
@@ -238,6 +254,7 @@ bool LineModel::both_neighboring_edges_slack(CRef<Mat2X> q) const {
    bool last_edge_slack = false;
 
    for (Eigen::Index e = 0; e < num_edges; e++) {
+      // TODO; switch this for calling edge_tension(e, len)
       double T = edge_force(e, edge_vector(q,e), Vec2::Zero()).norm();
 
       bool this_edge_slack = T <= 1E-12;

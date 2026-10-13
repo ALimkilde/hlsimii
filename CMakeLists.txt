@@ -7,7 +7,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 
-add_library(hlsim_core STATIC src/line.cpp src/mesh.cpp src/config.cpp src/physics.cpp src/linalg.cpp src/fall_simulator.cpp)
+add_library(hlsim_core STATIC src/line.cpp src/mesh.cpp src/config.cpp src/physics.cpp src/linalg.cpp src/fall_simulator.cpp src/experiments.cpp)
 target_include_directories(hlsim_core PUBLIC src)
 target_link_libraries(hlsim_core PUBLIC Eigen3::Eigen)
 
@@ -40,8 +40,23 @@ add_executable(test_free_fall tests/test_free_fall.cpp)
 target_link_libraries(test_free_fall PRIVATE hlsim_core)
 add_test(NAME free_fall COMMAND test_free_fall)
 
+add_executable(test_fall_simulator tests/test_fall_simulator.cpp)
+target_link_libraries(test_fall_simulator PRIVATE hlsim_core)
+add_test(NAME fall_simulator COMMAND test_fall_simulator)
+
+# rk45.h is header-only, so the test only needs Eigen
+add_executable(test_rk45 tests/test_rk45.cpp)
+target_include_directories(test_rk45 PRIVATE src)
+target_link_libraries(test_rk45 PRIVATE Eigen3::Eigen)
+add_test(NAME rk45 COMMAND test_rk45)
+
+# progress_bar.h is header-only as well
+add_executable(test_progress_bar tests/test_progress_bar.cpp)
+target_include_directories(test_progress_bar PRIVATE src)
+add_test(NAME progress_bar COMMAND test_progress_bar)
+
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-  foreach(target hlsim_core hlsim_yaml hlsimii test_line_mesh test_config test_physics test_linalg test_free_fall)
+  foreach(target hlsim_core hlsim_yaml hlsimii test_line_mesh test_config test_physics test_linalg test_free_fall test_fall_simulator test_rk45 test_progress_bar)
     target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic)
   endforeach()
 endif()
