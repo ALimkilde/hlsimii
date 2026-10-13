@@ -29,3 +29,12 @@ void SymmBlockTriMat::solve(Eigen::Ref<Vec> x, Eigen::Ref<const Vec> b) const
 {
    x = to_dense().partialPivLu().solve(b);
 }
+
+void SymmBlockTriMat::setZero() 
+{
+   for(Eigen::Index b = 0; b < num_blocks_; b++){
+      D[b].setZero();
+      if (b < num_blocks_ - 1) U[b].setZero();
+   }
+
+}

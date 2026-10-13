@@ -11,6 +11,8 @@ class SymmBlockTriMat {
 
       void solve(Eigen::Ref<Vec> x, Eigen::Ref<const Vec> b) const;
 
+      void setZero();
+
       Mat to_dense() const;
 
       Mat2& upper(const int i) { return U[i]; }

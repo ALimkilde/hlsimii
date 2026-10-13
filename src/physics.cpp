@@ -3,9 +3,6 @@
 #include <cassert>
 #include <iostream>
 
-static Eigen::Index last_edge(Eigen::Index i) { return i; }
-static Eigen::Index next_edge(Eigen::Index i) { return i+1; }
-
 LineModel::LineModel(const DiscreteLine& line, 
                      const Vec2 anchor_left, 
                      const Vec2 anchor_right, 
@@ -116,41 +113,40 @@ Vec2 LineModel::vel_vector(CRef<Mat2X> v, Eigen::Index e) const {
    return (T + feKV) * u;
 }
 
-// Fills net forces into F (and Jacobian if argument present)
 void LineModel::assemble(CRef<Mat2X> q, CRef<Mat2X> v, Ref<Mat2X> F, SymmBlockTriMat* K) const
 {
    const Eigen::Index num_edges = line_.num_elements();
    const Eigen::Index num_nodes = q.cols();
    const Vec2& g = params_.gravity;
 
-   assert(num_edges > 1);
-
-   Mat2 last_edge_K, next_edge_K;
-   Mat2* last_edge_Kptr = nullptr; 
-   Mat2* next_edge_Kptr = nullptr;
-   
+   Mat2 edge_K;
+   Mat2* edge_Kptr = nullptr; 
    if (K) {
-      last_edge_Kptr = &last_edge_K;
-      next_edge_Kptr = &next_edge_K;
+      edge_Kptr = &edge_K;
+      K->setZero();
    }
 
-   Vec2 last_edge_force = edge_force(last_edge(0), edge_vector(q,0), vel_vector(v,0), last_edge_Kptr);   
-   Vec2 next_edge_force;
-
-   // Todo; refactor an assemble over edges
+   assert(num_edges > 1);
+   assert(num_edges == num_nodes + 1);
 
    for (Eigen::Index i = 0; i < num_nodes; ++i){
-      next_edge_force = edge_force(next_edge(i), edge_vector(q,next_edge(i)), vel_vector(v, next_edge(i)), next_edge_Kptr);
-      F.col(i) = next_edge_force - last_edge_force 
-                  + m_[i] * g;
+      F.col(i) = m_[i] * g;
+   }
 
-      last_edge_force = next_edge_force;
+   for (Eigen::Index e = 0; e < num_edges; ++e){
+      const Eigen::Index a = e - 1;          // left end of edge e
+      const Eigen::Index b = e;              // right end of edge e
+      const bool a_free = (a >= 0);          // is a a free node
+      const bool b_free = (b < num_nodes);   // is b a free node
+
+      Vec2 f = edge_force(e, edge_vector(q, e), vel_vector(v, e), edge_Kptr);
+      if (a_free) F.col(a) += f;   // Last node
+      if (b_free) F.col(b) -= f; // Next node
 
       if (K) {
-         K->diag(i) = -next_edge_K - last_edge_K;
-         if (i < num_nodes - 1) K->upper(i) = next_edge_K;
-
-         last_edge_K = next_edge_K;
+         if (a_free) K->diag(a) -= edge_K;
+         if (b_free) K->diag(b) -= edge_K;
+         if (a_free && b_free) K->upper(a) += edge_K;
       }
 
    }
@@ -302,7 +298,6 @@ void LineModel::rhs(double t, CRef<Vec> z, Ref<Vec> dz) const {
    StateView ds = state_view(dz);
 
    rhs(s.q, s.v, ds.q, ds.v);
-
 }
 
 
