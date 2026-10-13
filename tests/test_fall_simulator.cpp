@@ -23,7 +23,7 @@ int failures = 0;
 
 bool near_zero(double a) { return std::abs(a) <= 1e-9; }
 
-const double gy = -9.81;  // y points up, same as constants::gravity
+const double gy = -9.81;  // y points up; FallSimulator takes its free fall gravity from Params{}
 
 // Three edges between anchors (0,0) and (3,0), main rest length 1.0 and backup 1.2.
 // Two free nodes of 1 kg each.
@@ -53,8 +53,7 @@ FallSimulator simulator_with_slackliner_at(Eigen::Index node)
 {
     const LineModel m(three_edge_line(), {0.0, 0.0}, {3.0, 0.0}, Params{});
     m.place_slackliner(static_cast<int>(node), slackliner().m);
-    const FreeFall f(gy, 0.0, 0.0, 0.0);
-    return FallSimulator(m, f, slackliner(), node);
+    return FallSimulator(m, slackliner(), node);
 }
 
 // z = [q | v] with q given column-wise as (x0, y0, x1, y1).
