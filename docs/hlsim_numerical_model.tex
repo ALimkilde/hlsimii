@@ -1,4 +1,5 @@
 \documentclass[a4paper,10pt]{article}
+\usepackage{enumitem}
 \usepackage[utf8]{inputenc}
 \newcommand{\myparagraph}[1]{\paragraph{#1}\mbox{}\\}
 \usepackage[a4paper,margin=3.5cm]{geometry} %Sets the page geometry
@@ -109,6 +110,7 @@ Following the zoom-in in the sketch in Figure~\ref{fig:spring-chain} we can writ
 Note that each force here has a direction, so \(F_i^{\text{net}} \in \R^2\). We now let \(x_i(t)\) be the point \(x_i\) at time \(t\), to make the notation simpler we just use \(x_i\) to denote this, remembering that it is now a function of time. Using Newton's second law \(F = m a\) and recalling that acceleration is the double derivative with respect to time \(\ddx\) we arrive at the following differential equations:
 %
 \begin{equation}
+   \label{eq:ode}
    \ddx_i = \frac{\fnet_i }{m_i} 
 \end{equation}
 %
@@ -152,24 +154,64 @@ I had some different thoughts we including a backup in the system. In the start 
 I model the backup by letting the spring force of a given segment of the line been given by:
 %
 \begin{equation}
-   F_{i} = e_{i} (k_i^\text{main} \max(||\Delta x_i|| - l^\text{main}_{i}, 0) 
-       + k_i^\text{backup} \max(||\Delta x_i|| - l^\text{backup}_{i}, 0) 
+   F_{i} = e_{i} \big(k_i^\text{main} \max(||\Delta x_i|| - l^\text{main}_{i}, 0) 
+       + k_i^\text{backup} \max(||\Delta x_i|| - l^\text{backup}_{i}, 0) \big)
 \end{equation}
 %
 for $\Delta x_i = x_{i+1} - x_i$. This equation makes it some that if the stretch of the main line is enough to activate the backup line, the two springs both acts on the highline (and we can detect it during simulation). Furthermore, it gives us an easy way to simulate a backup fall; namely we just set the first term in the sum to 0.
 
 \subsection{Connecting the highliner}%
 \label{sub:connect}
-\begin{itemize}
-   \item Elastic leash
-   \item Only simulate y-value
-\end{itemize}
+
+In this section we will describe how the slackliner is added to the numerical model. The basic idea can be summarised the following: 
+
+\begin{enumerate}[label=(\Alph*)]
+   \item We assume that the leash is rigid and attatched to a specific node of the model throughout the simulation. 
+   \item We ignore any movement of the slackliner in the x-direction. So we simply model his height during the fall.
+   \item While in free fall we compute his height analytically.
+   \item While attatched to the line we simply add his mass to the node of attatchment
+\end{enumerate}
+
+Some comments on these modelling choices; 
+
+\begin{enumerate}[label=(\Alph*)]
+   \item Using a rigid leash avoids us tracking the stretch of the leash explicitely. A leash is often short (relative to the mesh of the highline) and much stiffer, as it combines rope and webbing. Firstly, we don't have good information on how they stretch, secondly it make the differential equation much slower to solve as it adds a very stiff element [Refer to some book on stiff solvers]. Additionally I found during experimentation, that we anyways need to handle the collision point where the leash gets taught, to avoid a spurious spike in leash force at this moment.
+   \item The reason to ignore the movement of the slackliner in the x-direction, is that I don't have a clean and efficient method of modelling an arbitrary connection point. And once we fix the node of attatchement, modelling lateral movement too will introduce swinging of the slackliner during a backup fall where the line shifts. This is not what happens in real life, as the leash ring slides with some friction. But as this would be very hard to model accurately, I chose to only model the height of the slackliner - which is what we are the most interested in anyways.
+   \item Computing his state analytically (contrasted to adding his state to the differential equation), keeps a super clean structure of equations (every node is attatched to it's two neighbors), which can be used to speed up the numerics of the solver significantly. See [Refer to structured Jacobian block sparse Appendix].
+   \item Same argument as (C).
+\end{enumerate}
+%
+\subsubsection{Analytical Description of an Object in Free Fall}%
+\label{ssub:freefall}
+
+A free falling object with starting position $y_0$ and velocity $v_0$ at time $t_0$ can be computed as
+\begin{subequations}
+\begin{align}
+   y(t) &= -\frac{1}{2} m g (t - t_0)^2 + v_0 (t - t_0) + y_0 \\
+   v(t) &= -m g (t - t_0) + v_0
+\end{align}
+\end{subequations}
+
+\subsubsection{Collision and Event Detection}%
+\label{ssub:event_detection}
+To make this model work we need to do event detection during the time integration of \eqref{eq:ode}. Firstly when the leash gets taught, ie. when the slackliner is $l_\text{leash
+}$ under the node of attatchement, we need to detect it. To resolve the collision we modify the velocity of the node, in a way that preserves momentum:
+
+\begin{equation}
+   \label{eq:collision}
+   v_{i_s} = \frac{v_{i_s} m_n + v_s m_s}{m_n + m_s}
+\end{equation}
+
+where $i_s$ is the node of attatchement, $m_n$ is the mass of said node, $v_s$ is the velocity of the slackliner and $m_s$ is their mass.
+
+Note that this will lead to an energy loss of the system, as we have used an inexact collision to resolve the event. This could lead to an under estimation of the severity of the fall, but the energy loss decreases when the number of nodes increases (for more fine resultions) and it also reflects what happens in real life; some energy is lost to heat or propegated as waves through the line with the collision of the leash ring on the highline.
+
+This event can easily be monitored during the time integration by checking when $y(t) = y_{i_s} - l_\text{leash}$. Once detected we change the velocity of the node of attatchement using \eqref{eq:collision} and add the mass of the slackliner to the node.
+
+We do have to detect when the leash might go loose again (the slackliner goes back to free fall). This is simply done by checking whether the downward acceleration of the node of attatchement exceeds the gravitational acceleration. At this event we go back to the analytical description of the slackliners height, and sets the mass of the attatchement node back to it's node mass.
 
 \subsection{Dampening}%
 \label{sub:dampening}
-
-\subsection{Collisions}
-\label{sub:collision}
 
 \subsection{Time Integration}%
 \label{sub:odesolver}
@@ -186,5 +228,9 @@ for $\Delta x_i = x_{i+1} - x_i$. This equation makes it some that if the stretc
 
 \section{Conclusion and Future work}
 \label{sec:concl}
+
+\appendix
+\section{Derivatives to Forces}
+\section{ODE Solver}
 
 \end{document}
