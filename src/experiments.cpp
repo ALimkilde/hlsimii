@@ -27,7 +27,6 @@ SimData Experiments::simulate_leash_fall(SimConfig& cfg, DiscreteLine& dline, co
    Vec v0(q0.size());
    v0.setZero();
 
-   //TODO; define dt_out
    return fallsim.simulate(t_end, dt_out, as_const_mat2x(q0), as_const_mat2x(v0));
 
  }
