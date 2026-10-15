@@ -39,7 +39,7 @@ SimData FallSimulator::simulate(const double tend, const double dt_out, CRef<Mat
   ProgressBar bar;
 
   auto rhs    = [&](double t, CRef<Vec> z, Ref<Vec> dz) { linemodel_.rhs(t, z, dz); };
-  auto output_obs = [&](double t, CRef<Vec> z) { bar.update((t - t0) / (tend - t0)); return on_output(t, z, data); };
+  auto output_obs = [&](double t, CRef<Vec> z) { bar.update((t - t0) / (tend - t0)); return on_output(t, z, data, attached); };
   auto step_obs   = [&](double t, CRef<Vec> z) { return on_step(t, z, data); };
   auto events = [&](double t, CRef<Vec> z, Ref<Vec> g) {
      g[0] = attached ? event_leash_loose_flat(t, z) : event_leash_taut_flat(t, z);
@@ -48,7 +48,7 @@ SimData FallSimulator::simulate(const double tend, const double dt_out, CRef<Mat
   double t = t0;
 
   // Record the initial state here
-  on_output(t, z, data);
+  on_output(t, z, data, attached);
 
   while (t < tend) {
      RKResult r = rk45(rhs, events, 1, output_obs, step_obs, t, tend, z, opt);
@@ -64,14 +64,31 @@ SimData FallSimulator::simulate(const double tend, const double dt_out, CRef<Mat
   return data;
 }
 
-bool FallSimulator::on_output(const double t, CRef<Vec> z, SimData& data) const
+bool FallSimulator::on_output(const double t, CRef<Vec> z, SimData& data, const bool attached) const
 {
    ConstStateView s = const_state_view(z);
 
    data.time.push_back(t);
    data.position.emplace_back(s.q);
    data.velocities.emplace_back(s.v);
+
+   Mat2X F(2, s.q.cols());
+   linemodel_.assemble(s.q, s.v, F);
+   data.net_forces.emplace_back(F);
+
    data.y_slackliner.push_back(y_slackliner(t, s.q));
+   data.elastic_energy.push_back( linemodel_.elastic_energy(s.q));
+
+   double Ek = linemodel_.kinetic_energy(s.v);
+   double Eg = linemodel_.gravitational_energy(s.q);
+   if (!attached) {
+      double ytmp = freefall_.get_y(t) + slackliner_.l_leash;
+      Eg -= ytmp * freefall_.get_gy() * slackliner_.m;
+      double vy = freefall_.get_vy(t);
+      Ek += 0.5 * vy * vy * slackliner_.m;
+   }
+   data.gravitational_energy.push_back( Eg );
+   data.kinetic_energy.push_back( Ek );
 
    return true; // Never stop on output
 }

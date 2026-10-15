@@ -83,6 +83,15 @@ class LineModel {
       double get_mass(const int i) const {
          return m_[i];
       }
+ 
+      double gravitational_energy(CRef<Mat2X> q) const;
+      double elastic_energy(CRef<Mat2X> q) const;
+      double kinetic_energy(CRef<Mat2X> v) const;
+
+      int num_nodes() const { return line_.num_nodes(); }
+      int num_edges() const { return line_.num_nodes() + 1; }
+
+
   private:
       const DiscreteLine line_;
       Vec2 anchor_left_, anchor_right_;
@@ -96,6 +105,5 @@ class LineModel {
       //TODO save inverses of mass to optimize. 
       //Requires updating for place/removing slackliner
       // mutable std::vector<double> inv_m_;    // inverse node masses
-      
       
 };

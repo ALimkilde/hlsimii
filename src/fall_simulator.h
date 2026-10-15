@@ -22,7 +22,11 @@ struct SimData {
    std::vector<double> time;
    std::vector<Mat2X> position;
    std::vector<Mat2X> velocities;
+   std::vector<Mat2X> net_forces;
    std::vector<double> y_slackliner;
+   std::vector<double> gravitational_energy;
+   std::vector<double> elastic_energy;
+   std::vector<double> kinetic_energy;
 };
 
 class FallSimulator {
@@ -38,7 +42,7 @@ class FallSimulator {
 
       // ====== Logging ====== 
       // Called once per output time.
-      bool on_output(const double t, CRef<Vec> z, SimData& data) const;
+      bool on_output(const double t, CRef<Vec> z, SimData& data, const bool attached) const;
       // Called once per time step
       bool on_step(const double t, CRef<Vec> z, SimData& data) const;
 

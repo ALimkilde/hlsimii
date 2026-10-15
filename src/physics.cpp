@@ -331,3 +331,37 @@ void LineModel::rhs(CRef<Mat2X> q, CRef<Mat2X> v, Ref<Mat2X> dq, Ref<Mat2X> dv) 
    dv.array().rowwise() /= m.array();
 
 }
+
+double LineModel::gravitational_energy(CRef<Mat2X> q) const
+{
+   Eigen::Map<const Eigen::VectorXd> m(m_.data(), m_.size());
+   return q.row(1).dot(m)*params_.gravity.norm();
+}
+double LineModel::elastic_energy(CRef<Mat2X> q) const
+{
+   const Eigen::Index num_edges = line_.num_elements();
+
+   double out = 0.0;
+
+   for (Eigen::Index e = 0; e < num_edges; ++e){
+      const Vec2 dq = edge_vector(q, e);
+      const double len = dq.norm();
+
+      const double s_main = len - line_.l_main[e];
+      const double s_backup = len - line_.l_backup[e];
+
+      if (s_main > 0) out += s_main*s_main*line_.k_main[e];
+      if (s_backup > 0) out += s_backup*s_backup*line_.k_backup[e];
+   }
+
+   return 0.5*out;
+
+   
+}
+
+double LineModel::kinetic_energy(CRef<Mat2X> v) const
+{
+   Eigen::Map<const Eigen::VectorXd> m(m_.data(), m_.size());
+   
+   return 0.5 * m.dot(v.colwise().squaredNorm());
+}

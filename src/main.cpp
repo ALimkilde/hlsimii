@@ -1,6 +1,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include <sstream>
 #include <stdexcept>
 
@@ -22,19 +23,39 @@ std::string read_file(const std::string& path)
 }
 
 // One row per node per frame, anchors included (node -1 and num_nodes).
+// Fx, Fy is the net force on the node; nan for the anchors, which are fixed.
 void write_fall_line_csv(const std::string& path, const SimData& data, Vec2 anchor_left, Vec2 anchor_right)
 {
     std::ofstream out(path);
     if (!out) throw std::runtime_error("cannot write " + path);
 
-    out << "t,node,x,y\n";
+    const Vec2 no_force = Vec2::Constant(std::numeric_limits<double>::quiet_NaN());
+
+    out << "t,node,x,y,Fx,Fy\n";
     for (size_t f = 0; f < data.time.size(); ++f) {
         const Mat2X& q = data.position[f];
+        const Mat2X& F = data.net_forces[f];
         const Eigen::Index num_nodes = q.cols();
         for (Eigen::Index i = -1; i <= num_nodes; ++i) {
+            const bool anchor = (i == -1 || i == num_nodes);
             const Vec2 p = (i == -1) ? anchor_left : (i == num_nodes) ? anchor_right : Vec2(q.col(i));
-            out << data.time[f] << "," << i << "," << p.x() << "," << p.y() << "\n";
+            const Vec2 force = anchor ? no_force : Vec2(F.col(i));
+            out << data.time[f] << "," << i << "," << p.x() << "," << p.y() << ","
+                << force.x() << "," << force.y() << "\n";
         }
+    }
+}
+
+// One row per frame: gravitational, elastic and kinetic energy of line + slackliner.
+void write_fall_energy_csv(const std::string& path, const SimData& data)
+{
+    std::ofstream out(path);
+    if (!out) throw std::runtime_error("cannot write " + path);
+
+    out << "t,E_grav,E_elastic,E_kin\n";
+    for (size_t f = 0; f < data.time.size(); ++f) {
+        out << data.time[f] << "," << data.gravitational_energy[f] << "," << data.elastic_energy[f] << ","
+            << data.kinetic_energy[f] << "\n";
     }
 }
 
@@ -90,7 +111,7 @@ int main(int argc, char** argv)
                                                     : pull_webbing(line, 0.0, pull);
         DiscreteLine dline = discretize(pulled, elements_per_segment(pulled, cfg.L / (cfg.N - 1)));
 
-        const double dt_out = 2.0 / 60.0;   // frame rate of the written animation
+        const double dt_out = 1.0 / 60.0;   // frame rate of the written animation
         std::vector<bool> break_segments;
         for (const SegmentConfig& seg : cfg.segments) break_segments.push_back(seg.break_mainline);
 
@@ -103,17 +124,20 @@ int main(int argc, char** argv)
         print_summary("Leash fall", results.leash);
         write_fall_line_csv("fall_line.csv", results.leash, anchor_left, anchor_right);
         write_fall_slackliner_csv("fall_slackliner.csv", results.leash, l_leash);
-        std::cout << "Wrote fall_line.csv and fall_slackliner.csv\n";
+        write_fall_energy_csv("fall_energy.csv", results.leash);
+        std::cout << "Wrote fall_line.csv, fall_slackliner.csv and fall_energy.csv\n";
 
         if (results.has_backup_fall) {
             print_summary("Backup fall", results.backup);
             write_fall_line_csv("fall_line_backup.csv", results.backup, anchor_left, anchor_right);
             write_fall_slackliner_csv("fall_slackliner_backup.csv", results.backup, l_leash);
-            std::cout << "Wrote fall_line_backup.csv and fall_slackliner_backup.csv\n";
+            write_fall_energy_csv("fall_energy_backup.csv", results.backup);
+            std::cout << "Wrote fall_line_backup.csv, fall_slackliner_backup.csv and fall_energy_backup.csv\n";
         } else {
             // Remove the files of an earlier run so the animation doesn't show a stale backup fall
             std::filesystem::remove("fall_line_backup.csv");
             std::filesystem::remove("fall_slackliner_backup.csv");
+            std::filesystem::remove("fall_energy_backup.csv");
         }
     } catch (const std::exception& e) {
         std::cerr << "error: " << e.what() << "\n";
