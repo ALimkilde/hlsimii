@@ -2,6 +2,7 @@
 
 #include "eigen_include.h"
 #include <algorithm>
+#include <cassert>
 #include <cmath>
 #include <limits>
 
@@ -45,13 +46,15 @@ inline double newStepSize(const double h, double err, bool after_reject = false)
 class Rodas4 {
    public:
       explicit Rodas4(const Eigen::Index n)
-         : y_(n), ynew_(n), tmp_rhs_(n), embedded_(n),
+         : yprev_(n), y_(n), ynew_(n), tmp_rhs_(n), embedded_(n),
+           yinterp1_(n), yinterp2_(n),
            jac_(n,n), linsys_(n,n),
            u1_(n), u2_(n), u3_(n), u4_(n), u5_(n), u6_(n) {}
 
       void init(const double t0, CRef<Vec> z0) {
          t_ = t0;
-         t_prev_ = t0;
+         tprev_ = t0;
+         yprev_ = z0;
          y_ = z0;
          ynew_ = z0;
       }
@@ -108,8 +111,32 @@ class Rodas4 {
       }
 
       void accept() {
+         yprev_ = y_;
          y_ = ynew_;
+
+         // For dense output
+         yinterp1_ = d21*u1_ + d22*u2_ + d23*u3_ + d24*u4_ + d25*u5_; 
+         yinterp2_ = d31*u1_ + d32*u2_ + d33*u3_ + d34*u4_ + d35*u5_; 
+
+         tprev_ = t_;
          t_ += h_;
+      }
+
+      void interpolate(const double t, Ref<Vec> out) const {
+         static constexpr double hair = 1e-10;
+         assert(t >= tprev_ - hair);
+         assert(t <= t_ + hair);
+
+         if (t_ == tprev_) {
+            out = yprev_; 
+            return;
+         }
+
+         const double s  = (t - tprev_) / (t_ - tprev_);
+         const double s1 = 1.0 - s;
+
+         out = yprev_*s1 + s*(y_ + s1*(yinterp1_ + s*yinterp2_));
+
       }
 
       // Getters
@@ -117,8 +144,9 @@ class Rodas4 {
       Vec state() const { return y_; } 
 
   private:
-      double t_ = 0.0, t_prev_ = 0.0, h_ = 0.0;
-      Vec y_, ynew_, tmp_rhs_, embedded_;
+      double t_ = 0.0, tprev_ = 0.0, h_ = 0.0;
+      Vec yprev_, y_, ynew_, tmp_rhs_, embedded_; // TODO; get rid of ynew? and more?
+      Vec yinterp1_, yinterp2_;
       Mat jac_, linsys_;
 
       Eigen::PartialPivLU<Mat> jac_lu;
@@ -177,15 +205,45 @@ class Rodas4 {
    
 };
 
-template <class Stepper, class Rhs>
-Rodas4Result integrate(Stepper& stepper, Rhs&& rhs, const double t0, const double tend, Ref<Vec> z, const Rodas4Options& opt){
+class OutputGrid {
+   public:
+      explicit OutputGrid(double dt, double t0) : dt_(dt) {
+         disabled_ = (dt <= 0);
+         if (disabled_) return;
+
+         i_ = std::floor(t0/dt) + 1;
+      }
+
+      double next() const { 
+         return disabled_ ? std::numeric_limits<double>::infinity() : i_*dt_; 
+      }
+
+      void advance() { i_++; }
+
+   private:
+      double dt_;
+      Eigen::Index i_; // Where on grid we are
+      bool disabled_;
+
+};
+
+template <class Stepper, class Rhs, class OnOutput, class OnStep>
+Rodas4Result integrate(Stepper& stepper, Rhs&& rhs, OnOutput&& on_output, OnStep&& on_step, const double t0, const double tend, Ref<Vec> z, const Rodas4Options& opt){
 
    stepper.init(t0, z);
 
    bool after_reject = false; // Keeps track of whether last step was rejected or not
 
    double h = std::min({opt.h0, opt.hmax, tend - t0}); // step size
-                                                       //
+
+   // To store z after stopped event
+   double t_stop;
+   Vec z_stop(z.size()); 
+
+   // To store dense outputs
+   OutputGrid grid(opt.dt_out, t0);
+   double t_out;
+   Vec z_out(z.size());
    
    for (int step = 0; step < opt.max_steps; ++step) {
       const double t = stepper.t();
@@ -206,10 +264,35 @@ Rodas4Result integrate(Stepper& stepper, Rhs&& rhs, const double t0, const doubl
          after_reject = true;
          continue;
       }
-
+      
       const double h_next = newStepSize(h, err, after_reject); 
       stepper.accept();
       after_reject = false;
+
+      // === Event Detection === //
+      // ...
+      // ======================= //
+
+      // For now; no event detection
+      z_stop = stepper.state();
+      t_stop = stepper.t();
+
+      // Dense output
+      while(grid.next() <= t_stop) {
+         t_out = grid.next();
+         stepper.interpolate(t_out, z_out);
+         if (!on_output(t_out, z_out)) { // Calls on_output
+            z = z_out;
+            return {StopReason::ObserverStop, t_out, -1};
+         }
+
+         grid.advance();
+      }
+
+      if (!on_step(t_stop, z_stop)) { // Note that this calls on_step for every step
+         z = z_stop;
+         return {StopReason::ObserverStop, t_stop, -1};
+      }
 
       // Step size for next step
       h = std::min(h_next, opt.hmax);
