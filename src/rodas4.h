@@ -17,7 +17,8 @@ struct Rodas4Options {
    int max_steps = 1'000'000;
    double h0 = 1e-4, hmax = std::numeric_limits<double>::infinity();
    double dt_out = 0.0;   // Output on the global grid t_k = k * dt_out; <= 0 disables output
-   double hmin = 200 * 16.0 * std::numeric_limits<double>::epsilon();
+   double hmin = 1e-8;
+   double time_slack = 1e-8; // Must be >= hmin!
 };
 
 enum class StopReason { ReachedEnd, Event, ObserverStop, StepTooSmall, MaxSteps };
@@ -141,6 +142,7 @@ class Rodas4 {
 
       // Getters
       double t() const { return t_; }
+      double tprev() const { return tprev_; }
       Vec state() const { return y_; } 
 
   private:
@@ -227,8 +229,48 @@ class OutputGrid {
 
 };
 
-template <class Stepper, class Rhs, class OnOutput, class OnStep>
-Rodas4Result integrate(Stepper& stepper, Rhs&& rhs, OnOutput&& on_output, OnStep&& on_step, const double t0, const double tend, Ref<Vec> z, const Rodas4Options& opt){
+// Event handling helper routines
+//    - Finding first crossings
+//    - Bysection root finding on dense ouput (using stepper.interpolate)
+//
+// Implemented by Claude
+namespace eventHandling {
+   // An event fires when g leaves its sign. Starting exactly at 0 (e.g. right after a restart) does not count.
+   inline bool crossed(const double g_prev, const double g) {
+      return (g_prev < 0.0 && g >= 0.0) || (g_prev > 0.0 && g <= 0.0);
+   }
+
+   // Index of the first component of g that crossed relative to g_prev, -1 if none
+   inline int first_crossing(CRef<Vec> g_prev, CRef<Vec> g) {
+      for (Eigen::Index i = 0; i < g.size(); ++i)
+         if (crossed(g_prev[i], g[i])) return static_cast<int>(i);
+      return -1;
+   }
+
+   // Bisection on the dense output for the earliest crossing in the last step.
+   // On entry g holds the event values at stepper.t() and has a crossing.
+   // Returns the time just after the root, so g is already on the new side there.
+   template <class Stepper, class Events>
+   double locate_event(const Stepper& stepper, Events& events, CRef<Vec> g_prev,
+                       Ref<Vec> g, Ref<Vec> g_mid, Ref<Vec> z_mid) {
+      double a = stepper.tprev(), b = stepper.t();   // Invariant: no crossing at a, crossing at b
+      const double tol = 4.0 * std::numeric_limits<double>::epsilon() * std::max(1.0, std::abs(b));
+
+      while (b - a > tol) {
+         const double m = 0.5 * (a + b);
+         if (m <= a || m >= b) break;
+
+         stepper.interpolate(m, z_mid);
+         events(m, z_mid, g_mid);
+         if (first_crossing(g_prev, g_mid) >= 0) { b = m; g = g_mid; }
+         else a = m;
+      }
+      return b;
+   }
+}
+
+template <class Stepper, class Rhs, class Events, class OnOutput, class OnStep>
+Rodas4Result integrate(Stepper& stepper, Rhs&& rhs, Events&& events, const int n_events, OnOutput&& on_output, OnStep&& on_step, const double t0, const double tend, Ref<Vec> z, const Rodas4Options& opt){
 
    stepper.init(t0, z);
 
@@ -240,6 +282,11 @@ Rodas4Result integrate(Stepper& stepper, Rhs&& rhs, OnOutput&& on_output, OnStep
    double t_stop;
    Vec z_stop(z.size()); 
 
+   // Event handling
+   int event = -1; // -1 means no event happened
+   Vec g_prev(n_events), g(n_events), g_mid(n_events);
+   events(t0, z, g_prev);
+
    // To store dense outputs
    OutputGrid grid(opt.dt_out, t0);
    double t_out;
@@ -247,8 +294,20 @@ Rodas4Result integrate(Stepper& stepper, Rhs&& rhs, OnOutput&& on_output, OnStep
    
    for (int step = 0; step < opt.max_steps; ++step) {
       const double t = stepper.t();
-      if (tend - t <= opt.hmin) {
+      if (tend - t <= opt.time_slack) {
          z = stepper.state();
+
+         // Check for one last output
+         t_out = tend;
+         if (grid.next() <= t_out + opt.time_slack) { // Add a little slack here
+            z_out = z;
+            if (!on_output(t_out, z_out)) { // Calls on_output
+               z = z_out;
+               return {StopReason::ObserverStop, t_out, -1};
+            }
+            grid.advance();
+         }
+
          return {StopReason::ReachedEnd, t, -1};
       }
 
@@ -269,13 +328,17 @@ Rodas4Result integrate(Stepper& stepper, Rhs&& rhs, OnOutput&& on_output, OnStep
       stepper.accept();
       after_reject = false;
 
-      // === Event Detection === //
-      // ...
-      // ======================= //
-
-      // For now; no event detection
-      z_stop = stepper.state();
-      t_stop = stepper.t();
+      // Event handling
+      events(stepper.t(), stepper.state(), g);
+      event = eventHandling::first_crossing(g_prev, g);
+      if (event >= 0) {
+         t_stop = eventHandling::locate_event(stepper, events, g_prev, g, g_mid, z_stop);
+         event = eventHandling::first_crossing(g_prev, g);
+         stepper.interpolate(t_stop, z_stop);
+      } else { // No event
+         z_stop = stepper.state();
+         t_stop = stepper.t();
+      }
 
       // Dense output
       while(grid.next() <= t_stop) {
@@ -294,6 +357,13 @@ Rodas4Result integrate(Stepper& stepper, Rhs&& rhs, OnOutput&& on_output, OnStep
          return {StopReason::ObserverStop, t_stop, -1};
       }
 
+      if (event >= 0) {
+         z = z_stop;
+         return {StopReason::Event, t_stop, event};
+      }
+
+      // Update event
+      g_prev.swap(g);
       // Step size for next step
       h = std::min(h_next, opt.hmax);
    }

@@ -71,12 +71,15 @@ Rodas4Options tolerances(double tol)
     return opt;
 }
 
-// integrate() with observers that never stop
+// Event function with no components: never fires
+void no_events(double, CRef<Vec>, Ref<Vec>) {}
+
+// integrate() without events, with observers that never stop
 template <class Rhs>
 Rodas4Result integrate_quiet(Rodas4& stepper, Rhs& rhs, double t0, double tend, Ref<Vec> z, const Rodas4Options& opt)
 {
     auto keep_going = [](double, CRef<Vec>) { return true; };
-    return integrate(stepper, rhs, keep_going, keep_going, t0, tend, z, opt);
+    return integrate(stepper, rhs, no_events, 0, keep_going, keep_going, t0, tend, z, opt);
 }
 
 // Fixed steps through the stepper directly: halving h divides the error by ~2^4
@@ -298,7 +301,7 @@ std::vector<Call> record_calls(double t0, double tend, const Rodas4Options& opt,
     std::vector<Call> calls;
     auto on_output = [&](double t, CRef<Vec> zt) { calls.push_back({true, t, zt}); return true; };
     auto on_step = [&](double t, CRef<Vec> zt) { calls.push_back({false, t, zt}); return true; };
-    const Rodas4Result r = integrate(stepper, rhs, on_output, on_step, t0, tend, z, opt);
+    const Rodas4Result r = integrate(stepper, rhs, no_events, 0, on_output, on_step, t0, tend, z, opt);
     if (result) *result = r;
     return calls;
 }
@@ -346,9 +349,19 @@ void test_output_at_tend_with_rounding()
     opt.dt_out = 0.1;
     const std::pair<int, double> cases[] = {{3, 0.3}, {6, 0.6}, {7, 0.7}, {10, 1.0}};
     for (const auto& [k_end, tend] : cases) {
-        const std::vector<double> ts = output_times(record_calls(0.0, tend, opt));
+        const std::vector<Call> calls = record_calls(0.0, tend, opt);
+        const std::vector<double> ts = output_times(calls);
         std::cout << "  tend " << tend << ": " << ts.size() << " outputs (expected " << k_end << ")\n";
         CHECK(static_cast<int>(ts.size()) == k_end);
+
+        // The last output is at tend (up to rounding of k * dt_out) with the state there
+        const Call* last = nullptr;
+        for (const Call& c : calls)
+            if (c.is_output) last = &c;
+        CHECK(last && std::abs(last->t - tend) < 1e-12);
+        CHECK(last && std::abs(last->z[0] - std::cos(tend)) < 1e-6);
+        // Output times strictly increase: no output is repeated
+        for (std::size_t i = 1; i < ts.size(); ++i) CHECK(ts[i - 1] < ts[i]);
     }
 }
 
@@ -389,7 +402,7 @@ void test_output_observer_stops()
     Vec z_seen(2);
     auto on_output = [&](double t, CRef<Vec> zt) { z_seen = zt; return t < 0.5 - 1e-12; };
     auto on_step = [](double, CRef<Vec>) { return true; };
-    const Rodas4Result r = integrate(stepper, rhs, on_output, on_step, 0.0, 10.0, z, opt);
+    const Rodas4Result r = integrate(stepper, rhs, no_events, 0, on_output, on_step, 0.0, 10.0, z, opt);
     CHECK(r.reason == StopReason::ObserverStop);
     CHECK(r.t == 5 * 0.1);
     CHECK(z == z_seen);
@@ -407,11 +420,117 @@ void test_step_observer_stops()
     int n_outputs = 0;
     auto on_output = [&](double, CRef<Vec>) { ++n_outputs; return true; };
     auto on_step = [](double, CRef<Vec>) { return false; };
-    const Rodas4Result r = integrate(stepper, rhs, on_output, on_step, 0.0, 10.0, z, opt);
+    const Rodas4Result r = integrate(stepper, rhs, no_events, 0, on_output, on_step, 0.0, 10.0, z, opt);
     CHECK(r.reason == StopReason::ObserverStop);
     CHECK(r.t > 0.0);
     CHECK(z == stepper.state());
     CHECK(n_outputs == static_cast<int>(std::floor(r.t / 1e-3)));   // All grid points inside the first step
+}
+
+// ---------------------------------------------------------------------------
+// Events
+// ---------------------------------------------------------------------------
+
+// Runs integrate() with the given events and records every observer call
+template <class Events>
+std::vector<Call> run_with_events(Events&& events, int n_events, double t0, Vec z0, double tend,
+                                  const Rodas4Options& opt, Rodas4Result& r, Vec& z_end)
+{
+    Oscillator rhs;
+    Rodas4 stepper(2);
+    z_end = z0;
+    std::vector<Call> calls;
+    auto on_output = [&](double t, CRef<Vec> zt) { calls.push_back({true, t, zt}); return true; };
+    auto on_step = [&](double t, CRef<Vec> zt) { calls.push_back({false, t, zt}); return true; };
+    r = integrate(stepper, rhs, events, n_events, on_output, on_step, t0, tend, z_end, opt);
+    return calls;
+}
+
+// x = cos t falls through 0 at pi/2: stop there with the state on the new side of the root
+void test_event_located()
+{
+    auto events = [](double, CRef<Vec> z, Ref<Vec> g) { g[0] = z[0]; };
+    Rodas4Result r{};
+    Vec z;
+    run_with_events(events, 1, 0.0, oscillator_start(), 10.0, tolerances(1e-8), r, z);
+    std::cout << "  event at t = " << r.t << " (pi/2 = " << M_PI / 2 << "), x = " << z[0] << "\n";
+    CHECK(r.reason == StopReason::Event);
+    CHECK(r.event_index == 0);
+    CHECK(std::abs(r.t - M_PI / 2) < 1e-6);
+    CHECK(z[0] <= 0.0);                        // Just past the root, so a restart does not re-fire
+    CHECK(std::abs(z[1] + 1.0) < 1e-6);        // v = -sin(pi/2)
+}
+
+// An event that only depends on t is located to rounding: the bisection is not limited by the interpolant
+void test_event_time_only()
+{
+    auto events = [](double t, CRef<Vec>, Ref<Vec> g) { g[0] = t - 0.7; };
+    Rodas4Result r{};
+    Vec z;
+    run_with_events(events, 1, 0.0, oscillator_start(), 10.0, tolerances(1e-6), r, z);
+    CHECK(r.reason == StopReason::Event);
+    CHECK(r.t >= 0.7);
+    CHECK(r.t - 0.7 < 1e-14);
+}
+
+// With several events, the earliest in time wins, not the lowest index
+void test_event_earliest_wins()
+{
+    // g0 = x crosses at pi/2, g1 = x - cos(1) crosses at t = 1
+    auto events = [](double, CRef<Vec> z, Ref<Vec> g) { g[0] = z[0]; g[1] = z[0] - std::cos(1.0); };
+    Rodas4Options opt = tolerances(1e-8);
+    opt.h0 = 0.9;   // First steps are large, so both are likely in play in the same step
+    Rodas4Result r{};
+    Vec z;
+    run_with_events(events, 2, 0.0, oscillator_start(), 10.0, opt, r, z);
+    CHECK(r.reason == StopReason::Event);
+    CHECK(r.event_index == 1);
+    CHECK(std::abs(r.t - 1.0) < 1e-6);
+}
+
+// g(t0) == 0 is not an event (restart convention); the next real crossing still fires
+void test_event_zero_at_start_does_not_fire()
+{
+    // g = x - 1 starts at 0, goes negative, and returns to 0 at 2 pi
+    auto events = [](double, CRef<Vec> z, Ref<Vec> g) { g[0] = z[0] - 1.0; };
+    Rodas4Result r{};
+    Vec z;
+    run_with_events(events, 1, 0.0, oscillator_start(), 5.0, tolerances(1e-8), r, z);
+    CHECK(r.reason == StopReason::ReachedEnd);
+}
+
+// Restarting from an event (as FallSimulator does) does not re-fire immediately: next stop is 3 pi / 2
+void test_event_restart()
+{
+    auto events = [](double, CRef<Vec> z, Ref<Vec> g) { g[0] = z[0]; };
+    Rodas4Result r{};
+    Vec z;
+    run_with_events(events, 1, 0.0, oscillator_start(), 10.0, tolerances(1e-8), r, z);
+    CHECK(r.reason == StopReason::Event);
+
+    Rodas4Result r2{};
+    Vec z2;
+    run_with_events(events, 1, r.t, z, 10.0, tolerances(1e-8), r2, z2);
+    std::cout << "  restart: next event at t = " << r2.t << " (3 pi/2 = " << 1.5 * M_PI << ")\n";
+    CHECK(r2.reason == StopReason::Event);
+    CHECK(std::abs(r2.t - 1.5 * M_PI) < 1e-6);
+}
+
+// Observers see nothing past the event; the last call is on_step at the event time with the event state
+void test_event_observers()
+{
+    auto events = [](double, CRef<Vec> z, Ref<Vec> g) { g[0] = z[0]; };
+    Rodas4Options opt = tolerances(1e-8);
+    opt.dt_out = 0.01;
+    Rodas4Result r{};
+    Vec z;
+    const std::vector<Call> calls = run_with_events(events, 1, 0.0, oscillator_start(), 10.0, opt, r, z);
+    CHECK(r.reason == StopReason::Event);
+    for (const Call& c : calls) CHECK(c.t <= r.t);
+    CHECK(!calls.empty() && !calls.back().is_output);
+    CHECK(!calls.empty() && calls.back().t == r.t);
+    CHECK(!calls.empty() && calls.back().z == z);
+    CHECK(output_times(calls).size() == 157);   // k * 0.01 <= pi/2 = 1.5708 for k = 1..157
 }
 
 } // namespace
@@ -439,6 +558,13 @@ int main()
     test_observer_calls_in_time_order();
     test_output_observer_stops();
     test_step_observer_stops();
+
+    test_event_located();
+    test_event_time_only();
+    test_event_earliest_wins();
+    test_event_zero_at_start_does_not_fire();
+    test_event_restart();
+    test_event_observers();
 
     if (failures == 0) std::cout << "All rodas tests passed\n";
     return failures == 0 ? 0 : 1;
