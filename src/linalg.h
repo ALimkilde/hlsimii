@@ -50,11 +50,11 @@ class RodasDenseLinSys {
       Eigen::PartialPivLU< Eigen::Ref<Mat> > lu_;
 };
 
-// Implements symmetric 2x2 block matrix
-class SymmBlockTriMat {
+// Implements 2x2 block tridiagonal matrix
+class BlockTriMat {
    public: 
       // Create zeroed matrix
-      explicit SymmBlockTriMat(const int num_blocks);
+      explicit BlockTriMat(const int num_blocks);
 
       void solve(Eigen::Ref<Vec> x, Eigen::Ref<const Vec> b) const;
 
@@ -65,6 +65,9 @@ class SymmBlockTriMat {
       Mat2& upper(const int i) { return U[i]; }
       const Mat2& upper(const int i) const { return U[i]; }
 
+      Mat2& lower(const int i) { return L[i]; }
+      const Mat2& lower(const int i) const { return L[i]; }
+
       Mat2& diag(const int i) { return D[i]; }
       const Mat2& diag(const int i) const { return D[i]; }
 
@@ -72,8 +75,8 @@ class SymmBlockTriMat {
       int num_blocks() const { return num_blocks_; }
    private: 
       int num_blocks_; 
-      std::vector<Mat2> D, U; // D : Diagonal blocks 
+      std::vector<Mat2> D, U, L; // D : Diagonal blocks 
                               // U : is the upper diagonal block
-                              // lower diagonal block: U.transpose() 
+                              // L : is the lower diagonal blocks
 
 };

@@ -127,7 +127,7 @@ Vec2 LineModel::edge_drag(Eigen::Index e, const Vec2& dq, const Vec2& v) const {
 
 }
 
-void LineModel::assemble(CRef<Mat2X> q, CRef<Mat2X> v, Ref<Mat2X> F, SymmBlockTriMat* K) const
+void LineModel::assemble(CRef<Mat2X> q, CRef<Mat2X> v, Ref<Mat2X> F, BlockTriMat* K) const
 {
    const Eigen::Index num_edges = line_.num_elements();
    const Eigen::Index num_nodes = q.cols();
@@ -163,13 +163,14 @@ void LineModel::assemble(CRef<Mat2X> q, CRef<Mat2X> v, Ref<Mat2X> F, SymmBlockTr
          if (a_free) K->diag(a) -= edge_K;
          if (b_free) K->diag(b) -= edge_K;
          if (a_free && b_free) K->upper(a) += edge_K;
+         if (a_free && b_free) K->lower(a) += edge_K;
       }
 
    }
 
 }
 
-void LineModel::residual(const Vec& q_flat, Vec& r_flat, SymmBlockTriMat* jac) const {
+void LineModel::residual(const Vec& q_flat, Vec& r_flat, BlockTriMat* jac) const {
 
    assert(r_flat.size() == q_flat.size());
 
@@ -275,7 +276,7 @@ bool LineModel::static_solver(Vec& q, double tol) const {
 
    Vec r(q.size());
    Vec dq(q.size()), qnew(q.size()); 
-   SymmBlockTriMat Jac(q.size()/2);
+   BlockTriMat Jac(q.size()/2);
 
    for (int i = 0; i < maxsteps; i++) {
        residual(q, r, &Jac);

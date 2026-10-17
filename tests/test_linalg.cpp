@@ -1,4 +1,4 @@
-// Tests for SymmBlockTriMat: construction, block accessors, to_dense and the dense LU solve.
+// Tests for BlockTriMat: construction, block accessors, to_dense, setZero and the dense LU solve.
 // Uses a CHECK macro instead of assert so the tests also run in Release builds.
 
 #include <iostream>
@@ -25,23 +25,25 @@ Mat2 mat2(double a, double b, double c, double d)
     return m;
 }
 
-// Three blocks where every stored entry is distinct, so a block in the wrong place
-// or a missing transpose changes the dense matrix.
-// The diagonal blocks are symmetric and dominate, so the matrix is invertible.
-SymmBlockTriMat three_block_matrix()
+// Three blocks where every stored entry is distinct, so a block in the wrong place,
+// or a lower block mixed up with a transposed upper block, changes the dense matrix.
+// The diagonal blocks dominate their rows, so the matrix is invertible.
+BlockTriMat three_block_matrix()
 {
-    SymmBlockTriMat A(3);
-    A.diag(0) = mat2(10, 1, 1, 20);
-    A.diag(1) = mat2(11, 2, 2, 21);
-    A.diag(2) = mat2(12, 3, 3, 22);
-    A.upper(0) = mat2(1, 2, 3, 4);   // couples blocks 0 and 1
-    A.upper(1) = mat2(5, 6, 7, 8);   // couples blocks 1 and 2
+    BlockTriMat A(3);
+    A.diag(0) = mat2(100, 1, 1, 200);
+    A.diag(1) = mat2(110, 2, 2, 210);
+    A.diag(2) = mat2(120, 3, 3, 220);
+    A.upper(0) = mat2(1, 2, 3, 4);       // block (0, 1)
+    A.upper(1) = mat2(5, 6, 7, 8);       // block (1, 2)
+    A.lower(0) = mat2(31, 32, 33, 34);   // block (1, 0)
+    A.lower(1) = mat2(35, 36, 37, 38);   // block (2, 1)
     return A;
 }
 
 void test_construction()
 {
-    const SymmBlockTriMat A(4);
+    const BlockTriMat A(4);
     CHECK(A.num_blocks() == 4);
     CHECK(A.n() == 8);
 
@@ -52,43 +54,52 @@ void test_construction()
 
 void test_accessors()
 {
-    SymmBlockTriMat A(2);
+    BlockTriMat A(2);
     A.diag(1) = mat2(1, 2, 2, 3);
     A.upper(0) += mat2(4, 5, 6, 7);
     A.upper(0) += mat2(1, 1, 1, 1);   // writes accumulate
+    A.lower(0) = mat2(9, 8, 7, 6);
 
     // The const overloads read the same stored blocks
-    const SymmBlockTriMat& cA = A;
+    const BlockTriMat& cA = A;
     CHECK(cA.diag(0).isZero());
     CHECK(cA.diag(1) == mat2(1, 2, 2, 3));
     CHECK(cA.upper(0) == mat2(5, 6, 7, 8));
+    CHECK(cA.lower(0) == mat2(9, 8, 7, 6));
 }
 
 void test_to_dense()
 {
-    const SymmBlockTriMat A = three_block_matrix();
+    const BlockTriMat A = three_block_matrix();
 
     Mat expected(6, 6);
-    expected << 10,  1,  1,  2,  0,  0,
-                 1, 20,  3,  4,  0,  0,
-                 1,  3, 11,  2,  5,  6,
-                 2,  4,  2, 21,  7,  8,
-                 0,  0,  5,  7, 12,  3,
-                 0,  0,  6,  8,  3, 22;
+    expected << 100,   1,   1,   2,   0,   0,
+                  1, 200,   3,   4,   0,   0,
+                 31,  32, 110,   2,   5,   6,
+                 33,  34,   2, 210,   7,   8,
+                  0,   0,  35,  36, 120,   3,
+                  0,   0,  37,  38,   3, 220;
 
     const Mat M = A.to_dense();
     CHECK(M == expected);
-    CHECK(M == M.transpose());
 
     // A single block has no off-diagonal blocks
-    SymmBlockTriMat B(1);
+    BlockTriMat B(1);
     B.diag(0) = mat2(1, 2, 2, 3);
     CHECK(B.to_dense() == mat2(1, 2, 2, 3));
 }
 
+// setZero clears every block, including the lower ones
+void test_set_zero()
+{
+    BlockTriMat A = three_block_matrix();
+    A.setZero();
+    CHECK(A.to_dense().isZero());
+}
+
 void test_solve()
 {
-    const SymmBlockTriMat A = three_block_matrix();
+    const BlockTriMat A = three_block_matrix();
     const Mat M = A.to_dense();
 
     // Manufactured solution: b = M x_true, then solve recovers x_true
@@ -114,6 +125,7 @@ int main()
     test_construction();
     test_accessors();
     test_to_dense();
+    test_set_zero();
     test_solve();
 
     if (failures > 0) {

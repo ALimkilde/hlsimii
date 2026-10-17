@@ -341,11 +341,14 @@ Zigzag zigzag()
 }
 
 // Fills every block with NaN, so a block that assemble forgets to write shows up in the check
-void poison(SymmBlockTriMat& K)
+void poison(BlockTriMat& K)
 {
     const double nan = std::numeric_limits<double>::quiet_NaN();
     for (int i = 0; i < K.num_blocks(); ++i) K.diag(i) = Mat2::Constant(nan);
-    for (int i = 0; i + 1 < K.num_blocks(); ++i) K.upper(i) = Mat2::Constant(nan);
+    for (int i = 0; i + 1 < K.num_blocks(); ++i) {
+        K.upper(i) = Mat2::Constant(nan);
+        K.lower(i) = Mat2::Constant(nan);
+    }
 }
 
 // Finite-difference check of the assembled Jacobian K = dF/dq on the zigzag, with gravity on.
@@ -357,7 +360,7 @@ void test_assemble_jacobian()
     const LineModel m(five_edge_line(), z.left, z.right, Params{});
     const Eigen::Index n = z.q.size();   // 8 coordinates, ordered [x0 y0 x1 y1 ...] like the dense K
 
-    SymmBlockTriMat K(4);
+    BlockTriMat K(4);
     poison(K);
     Mat2X F(2, 4);
     m.assemble(z.q, at_rest(z.q), F, &K);
@@ -410,7 +413,7 @@ void test_assemble_gravity()
     q << 0.8, 1.6, 2.4, 3.2,
          0.0, 0.0, 0.0, 0.0;   // edges 0.8 long: all slack
     Mat2X F(2, 4);
-    SymmBlockTriMat K(4);
+    BlockTriMat K(4);
     poison(K);
     m.assemble(q, at_rest(q), F, &K);
 
@@ -424,7 +427,7 @@ void test_assemble_gravity()
 }
 
 // Smallest valid line: two edges and one free node, so the loop runs once, the node is both
-// first and last, and K has no upper block to write.
+// first and last, and K has no off-diagonal blocks to write.
 void test_assemble_single_node()
 {
     DiscreteLine d;
@@ -442,7 +445,7 @@ void test_assemble_single_node()
     Mat2X q(2, 1);
     q << 1.1, 0.0;   // both edges stretched 0.1: forces 10 and 20 along +x
     Mat2X F(2, 1);
-    SymmBlockTriMat K(1);
+    BlockTriMat K(1);
     poison(K);
     m.assemble(q, at_rest(q), F, &K);
 
@@ -463,7 +466,7 @@ void test_residual()
     const LineModel m(five_edge_line(), z.left, z.right, Params{});
 
     Mat2X F(2, 4);
-    SymmBlockTriMat K(4);
+    BlockTriMat K(4);
     m.assemble(z.q, at_rest(z.q), F, &K);
 
     Vec q(8);
@@ -473,7 +476,7 @@ void test_residual()
     }
 
     Vec r(8);
-    SymmBlockTriMat jac(4);
+    BlockTriMat jac(4);
     poison(jac);
     m.residual(q, r, &jac);
     for (int i = 0; i < 4; ++i) {

@@ -55,7 +55,7 @@ class LineModel {
       void rhs(CRef<Mat2X> q, CRef<Mat2X> v, Ref<Mat2X> dq, Ref<Mat2X> dv) const;  // Internal implementation
                                 
       // === Static Solves === //
-      void residual(const Vec& q_flat, Vec& r_flat, SymmBlockTriMat* jac = nullptr) const;
+      void residual(const Vec& q_flat, Vec& r_flat, BlockTriMat* jac = nullptr) const;
       bool static_solver(Vec& q_flat, double tol) const;
       Vec static_solver_initial_guess() const;
 
@@ -78,7 +78,7 @@ class LineModel {
       // === drag === //
       Vec2 edge_drag(Eigen::Index e, const Vec2& dq, const Vec2& v) const;
 
-      void assemble(CRef<Mat2X> q, CRef<Mat2X> v, Ref<Mat2X> F, SymmBlockTriMat* K = nullptr) const; // Compute net forces in F and Jac in K
+      void assemble(CRef<Mat2X> q, CRef<Mat2X> v, Ref<Mat2X> F, BlockTriMat* K = nullptr) const; // Compute net forces in F and Jac in K
                                                                                       //
       double get_mass(const int i) const {
          return m_[i];
