@@ -69,7 +69,7 @@ Vec2 LineModel::vel_vector(CRef<Mat2X> v, Eigen::Index e) const {
    return vb - va;
 }
 
-  Vec2 LineModel::edge_force(Eigen::Index e, const Vec2& dq, const Vec2& dv, Mat2* K) const
+  Vec2 LineModel::edge_force(Eigen::Index e, const Vec2& dq, const Vec2& dv, Mat2* Kq, Mat2* Kv) const
 {
    const double len = dq.norm();
    const double s_main = len - line_.l_main[e];
@@ -93,7 +93,8 @@ Vec2 LineModel::vel_vector(CRef<Mat2X> v, Eigen::Index e) const {
      
    // === Jacobian ===
    if (T == 0.0) {                 // slack edge
-      if (K) K->setZero();
+      if (Kq) Kq->setZero();
+      if (Kv) Kv->setZero();
       return Vec2::Zero();
    } 
  
@@ -104,21 +105,30 @@ Vec2 LineModel::vel_vector(CRef<Mat2X> v, Eigen::Index e) const {
    // Clip:
    if (feKV <= -T) {
       feKV = -T;
-      if (K) K->setZero();
+      if (Kq) Kq->setZero();
+      if (Kv) Kv->setZero();
    } else {
       
-      if (feKV >= 0) feKV = 0; // Dont dampen stretching edges
+      if (feKV >= 0) {
+         feKV = 0; // Dont dampen stretching edges
+         if (Kv) Kv->setZero();
+      }
 
-      if (K) {
-         Mat2 uuT = u * u.transpose();
+      Mat2 uuT;
+      if (Kq || Kv) uuT = u * u.transpose(); // Both derivatives use this
+
+      if (Kq) {
          Mat2 IuuT = (Mat2::Identity() - uuT);
-         *K = T/len * IuuT + dT * uuT;
+         *Kq = T/len * IuuT + dT * uuT;
          if (feKV < 0) {
-            *K += 1/len * c_KV * u * dv.transpose() * IuuT; 
-            *K += 1/len * feKV * IuuT;
+            *Kq += 1/len * c_KV * u * dv.transpose() * IuuT; 
+            *Kq += 1/len * feKV * IuuT;
+
          }
       }
-   
+
+      if (!(feKV>=0) && Kv) *Kv = c_KV * uuT; 
+
    }
 
 
@@ -137,17 +147,24 @@ Vec2 LineModel::edge_drag(Eigen::Index e, const Vec2& dq, const Vec2& v) const {
 
 }
 
-void LineModel::assemble(CRef<Mat2X> q, CRef<Mat2X> v, Ref<Mat2X> F, BlockTriMat* K) const
+void LineModel::assemble(CRef<Mat2X> q, CRef<Mat2X> v, Ref<Mat2X> F, BlockTriMat* Kq, BlockTriMat* Kv) const
 {
    const Eigen::Index num_edges = line_.num_elements();
    const Eigen::Index num_nodes = q.cols();
    const Vec2& g = params_.gravity;
 
-   Mat2 edge_K;
-   Mat2* edge_Kptr = nullptr; 
-   if (K) {
-      edge_Kptr = &edge_K;
-      K->setZero();
+   Mat2 edge_Kq;
+   Mat2* edge_Kqptr = nullptr; 
+   if (Kq) {
+      edge_Kqptr = &edge_Kq;
+      Kq->setZero();
+   }
+
+   Mat2 edge_Kv;
+   Mat2* edge_Kvptr = nullptr; 
+   if (Kv) {
+      edge_Kvptr = &edge_Kv;
+      Kv->setZero();
    }
 
    assert(num_edges > 1);
@@ -164,16 +181,23 @@ void LineModel::assemble(CRef<Mat2X> q, CRef<Mat2X> v, Ref<Mat2X> F, BlockTriMat
       const bool b_free = (b < num_nodes);   // is b a free node
 
       const Vec2 dq = edge_vector(q, e);
-      const Vec2 f = edge_force(e, dq, vel_vector(v, e), edge_Kptr);
+      const Vec2 f = edge_force(e, dq, vel_vector(v, e), edge_Kqptr, edge_Kvptr);
 
       if (a_free) F.col(a) += f + 0.5 * edge_drag(e, dq, v.col(a));
       if (b_free) F.col(b) += 0.5 * edge_drag(e, dq, v.col(b)) - f;
 
-      if (K) {
-         if (a_free) K->diag(a) -= edge_K;
-         if (b_free) K->diag(b) -= edge_K;
-         if (a_free && b_free) K->upper(a) += edge_K;
-         if (a_free && b_free) K->lower(a) += edge_K;
+      if (Kq) {
+         if (a_free) Kq->diag(a) -= edge_Kq;
+         if (b_free) Kq->diag(b) -= edge_Kq;
+         if (a_free && b_free) Kq->upper(a) += edge_Kq;
+         if (a_free && b_free) Kq->lower(a) += edge_Kq;
+      }
+
+      if (Kv) {
+         if (a_free) Kv->diag(a) -= edge_Kv;
+         if (b_free) Kv->diag(b) -= edge_Kv;
+         if (a_free && b_free) Kv->upper(a) += edge_Kv;
+         if (a_free && b_free) Kv->lower(a) += edge_Kv;
       }
 
    }

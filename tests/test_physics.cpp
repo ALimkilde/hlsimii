@@ -224,6 +224,60 @@ void test_damping_continuous()
     }
 }
 
+// Finite-difference check of both edge Jacobians with damping: Kq = df/d(dq) and Kv = df/d(dv).
+// The cases cover every branch of edge_force, and dv always has a sideways part so the terms from
+// the turning edge direction are exercised. Each Jacobian is also requested on its own, and must
+// come out the same as when both are requested.
+void test_edge_jacobian_damped()
+{
+    const LineModel m = damped_model({0.0, 0.0}, {3.0, 0.0});
+    const Vec2 u(0.6, 0.8), u_perp(-0.8, 0.6);
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    const double h = 1e-6;
+
+    // Edge 0 at len 1.5: T = 65, c = 15, so damping clips at dlen/dt = -65/15 = -4.33
+    // Edge 0 at len 1.1: T = 10, c = 10, so damping clips at dlen/dt = -1
+    struct Case { const char* name; double len; Vec2 dv; };
+    const Case cases[] = {
+        {"stretching",              1.5,   2.0 * u + 1.0 * u_perp},
+        {"damped, main + backup",   1.5,  -2.0 * u + 1.5 * u_perp},
+        {"damped, mostly sideways", 1.5,  -0.7 * u - 3.0 * u_perp},
+        {"damped, main only",       1.1,  -0.5 * u + 0.8 * u_perp},
+        {"clipped",                 1.5, -10.0 * u + 1.0 * u_perp},
+        {"slack, retracting",       0.9,  -2.0 * u + 1.0 * u_perp},
+    };
+
+    std::cout << "damped edge Jacobian FD check\n";
+    std::cout << "  case                       max err Kq   max err Kv\n";
+
+    for (const Case& c : cases) {
+        const Vec2 dq = c.len * u;
+
+        Mat2 Kq = Mat2::Constant(nan), Kv = Mat2::Constant(nan);
+        m.edge_force(0, dq, c.dv, &Kq, &Kv);
+
+        Mat2 Kq_fd, Kv_fd;
+        for (int j = 0; j < 2; ++j) {
+            const Vec2 d = h * Vec2::Unit(j);
+            Kq_fd.col(j) = (m.edge_force(0, dq + d, c.dv) - m.edge_force(0, dq - d, c.dv)) / (2.0 * h);
+            Kv_fd.col(j) = (m.edge_force(0, dq, c.dv + d) - m.edge_force(0, dq, c.dv - d)) / (2.0 * h);
+        }
+        const double err_q = (Kq - Kq_fd).cwiseAbs().maxCoeff();
+        const double err_v = (Kv - Kv_fd).cwiseAbs().maxCoeff();
+        std::printf("  %-25s  %10.3e   %10.3e\n", c.name, err_q, err_v);
+
+        // NaN left in a Jacobian makes the error NaN, which fails these checks too
+        CHECK(err_q <= 1e-6 * std::max(1.0, Kq_fd.norm()));
+        CHECK(err_v <= 1e-6 * std::max(1.0, Kv_fd.norm()));
+
+        Mat2 Kq_only = Mat2::Constant(nan), Kv_only = Mat2::Constant(nan);
+        m.edge_force(0, dq, c.dv, &Kq_only);
+        m.edge_force(0, dq, c.dv, nullptr, &Kv_only);
+        CHECK(Kq_only == Kq);
+        CHECK(Kv_only == Kv);
+    }
+}
+
 // assemble passes each edge its velocity difference, with the anchors standing still.
 // Every edge stretched 0.1 (spring forces 10, 20, 30, c = 10, 20, 30).
 // Node 0 moves left and node 1 moves right:
@@ -399,6 +453,77 @@ void test_assemble_jacobian()
         prev_err = err;
     }
     CHECK(std::abs(order - 2.0) < 0.1);
+}
+
+// Finite-difference check of both assembled Jacobians, Kq = dF/dq and Kv = dF/dv, on the zigzag
+// with damping on. The node velocities are built from a chosen stretch rate dlen/dt per edge
+// (plus a sideways part), so the edges hit every branch of edge_force:
+//   edge 0: main only,     rate -0.5: damped     (T = 10,  c = 10, clips below -1)
+//   edge 1: slack,         rate -0.3
+//   edge 2: main + backup, rate -0.3: damped     (T = 171, c = 37, clips below -4.6)
+//   edge 3: main + backup, rate -4.0: clipped    (T = 128, c = 48, clips below -2.67)
+//   edge 4: main only,     rate +3.8: stretching (not chosen: fixed by the right anchor standing still)
+// Drag is switched off, so only the edge forces depend on q and v.
+void test_assemble_jacobian_damped()
+{
+    const Zigzag z = zigzag();
+    Params p;
+    p.tau_KV = 0.1;
+    p.c_drag = 0.0;
+    const LineModel m(five_edge_line(), z.left, z.right, p);
+    const Eigen::Index n = z.q.size();
+
+    const double rate[4] = {-0.5, -0.3, -0.3, -4.0};
+    const double side[4] = {0.4, 0.7, 0.5, 0.6};
+    Mat2X v(2, 4);
+    Vec2 v_prev = Vec2::Zero();   // left anchor
+    for (Eigen::Index e = 0; e < 4; ++e) {
+        const Vec2 u = m.edge_vector(z.q, e).normalized();
+        const Vec2 u_perp(-u.y(), u.x());
+        v.col(e) = v_prev + rate[e] * u + side[e] * u_perp;
+        v_prev = v.col(e);
+    }
+    const Vec2 u4 = m.edge_vector(z.q, 4).normalized();
+    CHECK(m.vel_vector(v, 4).dot(u4) > 1.0);   // edge 4 really is stretching, away from the kink
+
+    BlockTriMat Kq(4), Kv(4);
+    poison(Kq);
+    poison(Kv);
+    Mat2X F(2, 4);
+    m.assemble(z.q, v, F, &Kq, &Kv);
+    const Mat Jq = Kq.to_dense();
+    const Mat Jv = Kv.to_dense();
+    CHECK(Jq.allFinite());
+    CHECK(Jv.allFinite());
+
+    // Forces must not depend on whether the Jacobians were requested
+    Mat2X F_no_K(2, 4);
+    m.assemble(z.q, v, F_no_K);
+    CHECK(F_no_K == F);
+
+    // Column j: central difference of F when flat coordinate j of q (or of v) is perturbed
+    const double h = 1e-6;
+    Mat Jq_fd(n, n), Jv_fd(n, n);
+    for (Eigen::Index j = 0; j < n; ++j) {
+        Mat2X qp = z.q, qm = z.q, vp = v, vm = v;
+        qp.data()[j] += h;
+        qm.data()[j] -= h;
+        vp.data()[j] += h;
+        vm.data()[j] -= h;
+        Mat2X Fp(2, 4), Fm(2, 4);
+        m.assemble(qp, v, Fp);
+        m.assemble(qm, v, Fm);
+        Jq_fd.col(j) = Eigen::Map<const Vec>((Fp - Fm).eval().data(), n) / (2.0 * h);
+        m.assemble(z.q, vp, Fp);
+        m.assemble(z.q, vm, Fm);
+        Jv_fd.col(j) = Eigen::Map<const Vec>((Fp - Fm).eval().data(), n) / (2.0 * h);
+    }
+    const double err_q = (Jq - Jq_fd).cwiseAbs().maxCoeff();
+    const double err_v = (Jv - Jv_fd).cwiseAbs().maxCoeff();
+    std::printf("assembled damped Jacobian FD check (zigzag): max err Kq %.3e, Kv %.3e\n", err_q, err_v);
+
+    CHECK(err_q <= 1e-6 * std::max(1.0, Jq_fd.cwiseAbs().maxCoeff()));
+    CHECK(err_v <= 1e-6 * std::max(1.0, Jv_fd.cwiseAbs().maxCoeff()));
 }
 
 // With every edge slack the only force is gravity, so node i feels m_{i+1} * g.
@@ -753,9 +878,11 @@ int main()
     test_edge_force_damping();
     test_damping_dissipates();
     test_damping_continuous();
+    test_edge_jacobian_damped();
     test_assemble_damping();
     test_assemble();
     test_assemble_jacobian();
+    test_assemble_jacobian_damped();
     test_assemble_gravity();
     test_assemble_single_node();
     test_residual();
