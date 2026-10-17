@@ -76,7 +76,7 @@ class LineModel {
       Vec2 vel_vector(CRef<Mat2X> v, Eigen::Index e) const; 
 
       // === drag === //
-      Vec2 edge_drag(Eigen::Index e, const Vec2& dq, const Vec2& v) const;
+      Vec2 edge_drag(Eigen::Index e, const Vec2& dq, const Vec2& v, Mat2* Kq = nullptr, Mat2* Kv = nullptr) const;
 
       void assemble(CRef<Mat2X> q, CRef<Mat2X> v, Ref<Mat2X> F, BlockTriMat* Kq = nullptr, BlockTriMat* Kv = nullptr) const; // Compute net forces in F and Jac in K
                                                                                       //

@@ -91,7 +91,6 @@ Vec2 LineModel::vel_vector(CRef<Mat2X> v, Eigen::Index e) const {
    }
    c_KV *= params_.tau_KV; // c_KV = tau_KV * k
      
-   // === Jacobian ===
    if (T == 0.0) {                 // slack edge
       if (Kq) Kq->setZero();
       if (Kv) Kv->setZero();
@@ -136,14 +135,42 @@ Vec2 LineModel::vel_vector(CRef<Mat2X> v, Eigen::Index e) const {
 }
 
 // TODO; optimization possible; let this method reuse u, len, uuT, I-uuT.
-Vec2 LineModel::edge_drag(Eigen::Index e, const Vec2& dq, const Vec2& v) const {
+Vec2 LineModel::edge_drag(Eigen::Index e, const Vec2& dq, const Vec2& v, Mat2* Kq, Mat2* Kv) const {
    const double len = dq.norm();
    const Vec2 u = dq / len; // Unit vector
    const Vec2 vtilde = v - v.dot(u)*u; // Orthogonal part of v
 
+   const double vnorm2 = vtilde.squaredNorm();
+   if (vnorm2 == 0.0){
+      if (Kq) Kq->setZero();
+      if (Kv) Kv->setZero();
+      return Vec2::Zero();
+   }
+
    const double c = 0.5 * params_.rho_air * params_.c_drag * params_.webbing_width * (line_.l_main[e] + line_.l_backup[e]);
 
-   return - c * vtilde * vtilde.norm();
+   const double vlen = std::sqrt(vnorm2);
+   Vec2 drag = - c * vtilde * vlen;
+
+   Mat2 uuT, IuuT, I, ddrag_dvtilde;
+   if (Kq || Kv) {
+      uuT = u * u.transpose(); // Both derivatives use this
+      I = Mat2::Identity();
+      IuuT = (I - uuT);
+
+      ddrag_dvtilde = c * (-I*vlen - vtilde*vtilde.transpose()/vlen);
+   }
+
+   if (Kq) {
+      Mat2 dvtilde_dq = (-u*v.transpose() - v.dot(u)*I)*IuuT/len;
+      *Kq = ddrag_dvtilde * dvtilde_dq;
+   }
+
+   if (Kv) {
+      *Kv = ddrag_dvtilde * IuuT;
+   }
+
+   return drag;
 
 }
 
@@ -153,17 +180,19 @@ void LineModel::assemble(CRef<Mat2X> q, CRef<Mat2X> v, Ref<Mat2X> F, BlockTriMat
    const Eigen::Index num_nodes = q.cols();
    const Vec2& g = params_.gravity;
 
-   Mat2 edge_Kq;
-   Mat2* edge_Kqptr = nullptr; 
+   Mat2 edge_Kq, drag_Kq;
+   Mat2 *edge_Kqptr = nullptr, *drag_Kqptr = nullptr; 
    if (Kq) {
       edge_Kqptr = &edge_Kq;
+      drag_Kqptr = &drag_Kq;
       Kq->setZero();
    }
 
-   Mat2 edge_Kv;
-   Mat2* edge_Kvptr = nullptr; 
+   Mat2 edge_Kv, drag_Kv;
+   Mat2 *edge_Kvptr = nullptr, *drag_Kvptr = nullptr; 
    if (Kv) {
       edge_Kvptr = &edge_Kv;
+      drag_Kvptr = &drag_Kv;
       Kv->setZero();
    }
 
@@ -183,8 +212,28 @@ void LineModel::assemble(CRef<Mat2X> q, CRef<Mat2X> v, Ref<Mat2X> F, BlockTriMat
       const Vec2 dq = edge_vector(q, e);
       const Vec2 f = edge_force(e, dq, vel_vector(v, e), edge_Kqptr, edge_Kvptr);
 
-      if (a_free) F.col(a) += f + 0.5 * edge_drag(e, dq, v.col(a));
-      if (b_free) F.col(b) += 0.5 * edge_drag(e, dq, v.col(b)) - f;
+      if (a_free) {
+         F.col(a) += f + 0.5 * edge_drag(e, dq, v.col(a), drag_Kqptr, drag_Kvptr);
+         if (Kv) Kv->diag(a) += 0.5 * drag_Kv;
+         if (Kq) {
+            Kq->diag(a) -= 0.5 * drag_Kq;
+            if (b_free) {
+               Kq->upper(a) += 0.5 * drag_Kq;
+            }
+         }
+      }
+      if (b_free) {
+         F.col(b) += 0.5 * edge_drag(e, dq, v.col(b), drag_Kqptr, drag_Kvptr) - f;
+         if (Kv) Kv->diag(b) += 0.5 * drag_Kv;
+
+         if (Kq) {
+            Kq->diag(b) += 0.5 * drag_Kq;
+
+            if (a_free) {
+               Kq->lower(a) -= 0.5 * drag_Kq;
+            }
+         }
+      }
 
       if (Kq) {
          if (a_free) Kq->diag(a) -= edge_Kq;

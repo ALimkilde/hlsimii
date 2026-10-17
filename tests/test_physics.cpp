@@ -456,20 +456,17 @@ void test_assemble_jacobian()
 }
 
 // Finite-difference check of both assembled Jacobians, Kq = dF/dq and Kv = dF/dv, on the zigzag
-// with damping on. The node velocities are built from a chosen stretch rate dlen/dt per edge
-// (plus a sideways part), so the edges hit every branch of edge_force:
+// with damping on (and drag, if p has it). The node velocities are built from a chosen stretch
+// rate dlen/dt per edge (plus a sideways part), so the edges hit every branch of edge_force:
 //   edge 0: main only,     rate -0.5: damped     (T = 10,  c = 10, clips below -1)
 //   edge 1: slack,         rate -0.3
 //   edge 2: main + backup, rate -0.3: damped     (T = 171, c = 37, clips below -4.6)
 //   edge 3: main + backup, rate -4.0: clipped    (T = 128, c = 48, clips below -2.67)
 //   edge 4: main only,     rate +3.8: stretching (not chosen: fixed by the right anchor standing still)
-// Drag is switched off, so only the edge forces depend on q and v.
-void test_assemble_jacobian_damped()
+// The node velocities are also mostly sideways to the edges, so drag (when on) is far from zero.
+void check_assemble_jacobians(const Params& p, const char* name)
 {
     const Zigzag z = zigzag();
-    Params p;
-    p.tau_KV = 0.1;
-    p.c_drag = 0.0;
     const LineModel m(five_edge_line(), z.left, z.right, p);
     const Eigen::Index n = z.q.size();
 
@@ -520,10 +517,27 @@ void test_assemble_jacobian_damped()
     }
     const double err_q = (Jq - Jq_fd).cwiseAbs().maxCoeff();
     const double err_v = (Jv - Jv_fd).cwiseAbs().maxCoeff();
-    std::printf("assembled damped Jacobian FD check (zigzag): max err Kq %.3e, Kv %.3e\n", err_q, err_v);
+    std::printf("assembled Jacobian FD check (zigzag, %s): max err Kq %.3e, Kv %.3e\n", name, err_q, err_v);
 
     CHECK(err_q <= 1e-6 * std::max(1.0, Jq_fd.cwiseAbs().maxCoeff()));
     CHECK(err_v <= 1e-6 * std::max(1.0, Jv_fd.cwiseAbs().maxCoeff()));
+}
+
+void test_assemble_jacobian_damped()
+{
+    Params p;
+    p.tau_KV = 0.1;
+
+    // Drag off: only the edge forces depend on q and v
+    p.c_drag = 0.0;
+    check_assemble_jacobians(p, "damping only");
+
+    // Drag on, with a wide webbing so the drag terms are as large as the damping terms.
+    // Drag on node a depends on its own velocity and on dq = q_b - q_a, so it fills diag(a)
+    // and upper(a) of Kq but only diag(a) of Kv (and likewise for node b)
+    p.c_drag = 1.15;
+    p.webbing_width = 1.0;
+    check_assemble_jacobians(p, "damping + drag");
 }
 
 // With every edge slack the only force is gravity, so node i feels m_{i+1} * g.
@@ -799,6 +813,63 @@ void test_edge_drag()
     CHECK(close(m.edge_drag(0, {1.0, 1.0}, {2.0, 0.0}), Vec2(-s, s)));
 }
 
+// Finite-difference check of both drag Jacobians: Kq = d(drag)/d(dq) and Kv = d(drag)/dv.
+// At rest and when sliding along the edge v_perp = 0, where |v_perp| v_perp has zero derivative:
+// both Jacobians must come out finite and zero. There the central difference itself is only
+// accurate to about c * h, hence the absolute part of the tolerance.
+// Each Jacobian is also requested on its own, and must come out the same as when both are requested.
+void test_edge_drag_jacobian()
+{
+    const LineModel m(three_edge_line(), {0.0, 0.0}, {3.0, 0.0}, drag_params());
+    const Vec2 u(0.6, 0.8), u_perp(-0.8, 0.6);
+    const Vec2 dq = 1.5 * u;
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    const double h = 1e-6;
+
+    struct Case { const char* name; Vec2 v; };
+    const Case cases[] = {
+        {"generic",           1.3 * u + 2.0 * u_perp},
+        {"mostly sideways",  -0.4 * u - 3.0 * u_perp},
+        {"mostly along edge", 3.0 * u + 0.2 * u_perp},
+        {"along edge",        2.0 * u},
+        {"at rest",           Vec2::Zero()},
+    };
+
+    std::cout << "edge drag Jacobian FD check\n";
+    std::cout << "  case                 max err Kq   max err Kv\n";
+
+    for (const Case& c : cases) {
+        Mat2 Kq = Mat2::Constant(nan), Kv = Mat2::Constant(nan);
+        m.edge_drag(0, dq, c.v, &Kq, &Kv);
+
+        Mat2 Kq_fd, Kv_fd;
+        for (int j = 0; j < 2; ++j) {
+            const Vec2 d = h * Vec2::Unit(j);
+            Kq_fd.col(j) = (m.edge_drag(0, dq + d, c.v) - m.edge_drag(0, dq - d, c.v)) / (2.0 * h);
+            Kv_fd.col(j) = (m.edge_drag(0, dq, c.v + d) - m.edge_drag(0, dq, c.v - d)) / (2.0 * h);
+        }
+        const double err_q = (Kq - Kq_fd).cwiseAbs().maxCoeff();
+        const double err_v = (Kv - Kv_fd).cwiseAbs().maxCoeff();
+        std::printf("  %-19s  %10.3e   %10.3e\n", c.name, err_q, err_v);
+
+        // NaN left in a Jacobian makes the error NaN, which fails these checks too
+        CHECK(err_q <= 1e-6 * std::max(1.0, Kq_fd.norm()));
+        CHECK(err_v <= 1e-6 * std::max(1.0, Kv_fd.norm()));
+
+        Mat2 Kq_only = Mat2::Constant(nan), Kv_only = Mat2::Constant(nan);
+        m.edge_drag(0, dq, c.v, &Kq_only);
+        m.edge_drag(0, dq, c.v, nullptr, &Kv_only);
+        CHECK(Kq_only == Kq);
+        CHECK(Kv_only == Kv);
+    }
+
+    // Exactly at rest the Jacobians are exactly zero
+    Mat2 Kq = Mat2::Constant(nan), Kv = Mat2::Constant(nan);
+    m.edge_drag(0, dq, Vec2::Zero(), &Kq, &Kv);
+    CHECK(Kq.isZero(0.0));
+    CHECK(Kv.isZero(0.0));
+}
+
 // A straight line falling broadside. The edges are at rest length, so only gravity and drag act.
 // Each node gets half the drag of both its edges: 0.11 v^2 in total. With m = 1 and g = 10 the
 // forces balance at the terminal velocity v_t = sqrt(10 / 0.11).
@@ -892,6 +963,7 @@ int main()
     test_rhs_free_fall();
     test_rhs_static_equilibrium();
     test_edge_drag();
+    test_edge_drag_jacobian();
     test_assemble_drag_terminal_velocity();
     test_drag_mesh_refinement();
 
