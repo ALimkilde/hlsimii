@@ -7,7 +7,14 @@
 #include <limits>
 
 // Rodas4: 4th order Rosenbrock method with a 3rd order embedded error estimate.
-// Only depends on Eigen, never on the simulator (physics.h, line.h, ...).
+//         It is based off of campter IV.7 of the book
+//
+//             "Solving Ordinary Differential Equations II" by E. Hairer & G. Wanner
+//
+//         and their fortran code "rodas.f" and "dc_decsol.f" from
+//
+//             https://www.unige.ch/~hairer/software.html
+//
 
 struct Rodas4Options {
    double rtol = 1e-5, atol = 1e-5;
