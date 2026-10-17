@@ -6,9 +6,6 @@
 #include <cmath>
 #include <limits>
 
-struct RodasTableau {
-};
-
 // Rodas4: 4th order Rosenbrock method with a 3rd order embedded error estimate.
 // Only depends on Eigen, never on the simulator (physics.h, line.h, ...).
 
@@ -84,7 +81,8 @@ class Rodas4 {
 
          ynew_ = y_ + a21*u1_;
          rhs(t_ + c2*h, ynew_, tmp_rhs_);
-         u2_ = linsys_LU.solve(tmp_rhs_ + c21/h * u1_);
+         // TODO; store tmp_rhs + .. in buffers to avoid heap allocations!
+         u2_ = linsys_LU.solve(tmp_rhs_ + c21/h * u1_); 
 
          ynew_ = y_ + a31*u1_ + a32*u2_;
          rhs(t_ + c3*h, ynew_, tmp_rhs_);

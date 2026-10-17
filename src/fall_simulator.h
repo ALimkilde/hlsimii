@@ -64,9 +64,6 @@ class FallSimulator {
       // Free's the slackliner from the line and start free fall
       void free_slackliner(const double t, CRef<Mat2X> q, CRef<Mat2X> v);
 
-
-
-
    private:
       LineModel linemodel_;
       FreeFall freefall_;
