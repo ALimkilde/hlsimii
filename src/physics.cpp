@@ -98,19 +98,29 @@ Vec2 LineModel::vel_vector(CRef<Mat2X> v, Eigen::Index e) const {
    } 
  
    const Vec2 u = dq / len; // Unit vector
-   if (K) {
-      Mat2 uuT = u * u.transpose();
-      *K = T/len * (Mat2::Identity() - uuT) + dT * uuT;
-   }
 
    // Kelvin Voight Dampening
    double feKV = c_KV * dv.dot(u);
    // Clip:
    if (feKV <= -T) {
       feKV = -T;
-   } else if (feKV >= 0) { // Don't dampen stretching elements
-      feKV = 0;
+      if (K) K->setZero();
+   } else {
+      
+      if (feKV >= 0) feKV = 0; // Dont dampen stretching edges
+
+      if (K) {
+         Mat2 uuT = u * u.transpose();
+         Mat2 IuuT = (Mat2::Identity() - uuT);
+         *K = T/len * IuuT + dT * uuT;
+         if (feKV < 0) {
+            *K += 1/len * c_KV * u * dv.transpose() * IuuT; 
+            *K += 1/len * feKV * IuuT;
+         }
+      }
+   
    }
+
 
    return (T + feKV) * u;
 }
