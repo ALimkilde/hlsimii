@@ -7,9 +7,12 @@
 #include <limits>
 #include <vector>
 
+#include "linalg.h"
 #include "rodas4.h"
 
 namespace {
+
+using DenseRodas4 = Rodas4<RodasDenseLinSys>;
 
 int failures = 0;
 
@@ -76,7 +79,7 @@ void no_events(double, CRef<Vec>, Ref<Vec>) {}
 
 // integrate() without events, with observers that never stop
 template <class Rhs>
-Rodas4Result integrate_quiet(Rodas4& stepper, Rhs& rhs, double t0, double tend, Ref<Vec> z, const Rodas4Options& opt)
+Rodas4Result integrate_quiet(DenseRodas4& stepper, Rhs& rhs, double t0, double tend, Ref<Vec> z, const Rodas4Options& opt)
 {
     auto keep_going = [](double, CRef<Vec>) { return true; };
     return integrate(stepper, rhs, no_events, 0, keep_going, keep_going, t0, tend, z, opt);
@@ -87,7 +90,7 @@ void test_fixed_step_order()
 {
     auto error_with_steps = [](int n) {
         Oscillator rhs;
-        Rodas4 stepper(2);
+        DenseRodas4 stepper(2);
         stepper.init(0.0, oscillator_start());
         const double h = 2.0 / n;
         for (int i = 0; i < n; ++i) {
@@ -108,7 +111,7 @@ void test_accuracy_follows_tolerance()
 {
     for (double tol : {1e-4, 1e-6, 1e-8}) {
         Oscillator rhs;
-        Rodas4 stepper(2);
+        DenseRodas4 stepper(2);
         Vec z = oscillator_start();
         const Rodas4Result r = integrate_quiet(stepper, rhs, 0.0, 10.0, z, tolerances(tol));
         std::cout << "  tol " << tol << ": error " << std::abs(z[0] - std::cos(10.0))
@@ -123,7 +126,7 @@ void test_accuracy_follows_tolerance()
 void test_reaches_tend_exactly()
 {
     Oscillator rhs;
-    Rodas4 stepper(2);
+    DenseRodas4 stepper(2);
     Vec z = oscillator_start();
     const Rodas4Result r = integrate_quiet(stepper, rhs, 0.0, 3.0, z, tolerances(1e-8));
     CHECK(r.reason == StopReason::ReachedEnd);
@@ -136,7 +139,7 @@ void test_reaches_tend_exactly()
 void test_stiff_takes_few_steps()
 {
     StiffLinear rhs;
-    Rodas4 stepper(2);
+    DenseRodas4 stepper(2);
     Vec y(2);
     y << 1.0, 0.0;
     const Rodas4Result r = integrate_quiet(stepper, rhs, 0.0, 10.0, y, tolerances(1e-6));
@@ -152,7 +155,7 @@ void test_stiff_takes_few_steps()
 void test_recovers_after_reject()
 {
     Oscillator rhs;
-    Rodas4 stepper(2);
+    DenseRodas4 stepper(2);
     Rodas4Options opt = tolerances(1e-8);
     opt.h0 = 5.0;
     Vec z = oscillator_start();
@@ -162,7 +165,7 @@ void test_recovers_after_reject()
 
     // Same work as from a sensible h0, within a few attempts
     Oscillator rhs_ref;
-    Rodas4 stepper_ref(2);
+    DenseRodas4 stepper_ref(2);
     Vec z_ref = oscillator_start();
     integrate_quiet(stepper_ref, rhs_ref, 0.0, 10.0, z_ref, tolerances(1e-8));
     std::cout << "  h0 = 5: attempts " << rhs.jac_calls << " (h0 default: " << rhs_ref.jac_calls << ")\n";
@@ -173,7 +176,7 @@ void test_recovers_after_reject()
 void test_step_grows_from_tiny_h0()
 {
     Oscillator rhs;
-    Rodas4 stepper(2);
+    DenseRodas4 stepper(2);
     Rodas4Options opt = tolerances(1e-6);
     opt.h0 = 1e-6;
     Vec z = oscillator_start();
@@ -186,7 +189,7 @@ void test_step_grows_from_tiny_h0()
 void test_step_too_small()
 {
     NanRhs rhs;
-    Rodas4 stepper(2);
+    DenseRodas4 stepper(2);
     Vec z = oscillator_start();
     const Rodas4Result r = integrate_quiet(stepper, rhs, 0.0, 10.0, z, tolerances(1e-6));
     CHECK(r.reason == StopReason::StepTooSmall);
@@ -198,7 +201,7 @@ void test_step_too_small()
 void test_max_steps()
 {
     Oscillator rhs;
-    Rodas4 stepper(2);
+    DenseRodas4 stepper(2);
     Rodas4Options opt = tolerances(1e-8);
     opt.max_steps = 3;
     Vec z = oscillator_start();
@@ -215,7 +218,7 @@ void test_max_steps()
 // Before any accepted step the interpolant is the initial state
 void test_interpolate_before_first_accept()
 {
-    Rodas4 stepper(2);
+    DenseRodas4 stepper(2);
     stepper.init(0.0, oscillator_start());
     Vec out(2);
     stepper.interpolate(0.0, out);
@@ -226,7 +229,7 @@ void test_interpolate_before_first_accept()
 void test_interpolate_endpoints()
 {
     Oscillator rhs;
-    Rodas4 stepper(2);
+    DenseRodas4 stepper(2);
     stepper.init(0.0, oscillator_start());
     stepper.try_step(rhs, 0.3, 1e-6, 1e-6);
     stepper.accept();
@@ -245,7 +248,7 @@ void test_interpolate_order()
 {
     auto max_interior_error = [](double h) {
         Oscillator rhs;
-        Rodas4 stepper(2);
+        DenseRodas4 stepper(2);
         stepper.init(0.0, oscillator_start());
         stepper.try_step(rhs, h, 1e-6, 1e-6);
         stepper.accept();
@@ -269,7 +272,7 @@ void test_interpolate_order()
 void test_interpolate_after_rejected_step()
 {
     Oscillator rhs;
-    Rodas4 stepper(2);
+    DenseRodas4 stepper(2);
     stepper.init(0.0, oscillator_start());
     stepper.try_step(rhs, 0.3, 1e-6, 1e-6);
     stepper.accept();
@@ -295,7 +298,7 @@ struct Call {
 std::vector<Call> record_calls(double t0, double tend, const Rodas4Options& opt, Rodas4Result* result = nullptr)
 {
     Oscillator rhs;
-    Rodas4 stepper(2);
+    DenseRodas4 stepper(2);
     Vec z(2);
     z << std::cos(t0), -std::sin(t0);
     std::vector<Call> calls;
@@ -395,7 +398,7 @@ void test_observer_calls_in_time_order()
 void test_output_observer_stops()
 {
     Oscillator rhs;
-    Rodas4 stepper(2);
+    DenseRodas4 stepper(2);
     Rodas4Options opt = tolerances(1e-8);
     opt.dt_out = 0.1;
     Vec z = oscillator_start();
@@ -413,7 +416,7 @@ void test_output_observer_stops()
 void test_step_observer_stops()
 {
     Oscillator rhs;
-    Rodas4 stepper(2);
+    DenseRodas4 stepper(2);
     Rodas4Options opt = tolerances(1e-8);
     opt.dt_out = 1e-3;
     Vec z = oscillator_start();
@@ -437,7 +440,7 @@ std::vector<Call> run_with_events(Events&& events, int n_events, double t0, Vec 
                                   const Rodas4Options& opt, Rodas4Result& r, Vec& z_end)
 {
     Oscillator rhs;
-    Rodas4 stepper(2);
+    DenseRodas4 stepper(2);
     z_end = z0;
     std::vector<Call> calls;
     auto on_output = [&](double t, CRef<Vec> zt) { calls.push_back({true, t, zt}); return true; };

@@ -41,12 +41,13 @@ inline double newStepSize(const double h, double err, bool after_reject = false)
 }
    
 
+template <class LinSys>
 class Rodas4 {
    public:
       explicit Rodas4(const Eigen::Index n)
          : yprev_(n), y_(n), ynew_(n), tmp_rhs_(n), embedded_(n),
            yinterp1_(n), yinterp2_(n),
-           jac_(n,n), linsys_(n,n),
+           linsys_(n),
            u1_(n), u2_(n), u3_(n), u4_(n), u5_(n), u6_(n) {}
 
       void init(const double t0, CRef<Vec> z0) {
@@ -65,41 +66,36 @@ class Rodas4 {
          // ----------------------------------------------------------------
          // TODO; find a way to skip this for rejected steps
          // ----------------------------------------------------------------
-         rhs(t_, y_, tmp_rhs_, jac_); // Get jac at step
-
-         // Construct I/(gamma * h) - J
-         double fac = 1 / (gamma * h);
-         linsys_ = - jac_;
-         linsys_.diagonal().array() += fac;
+         rhs(t_, y_, tmp_rhs_, linsys_.jacobian()); // Fill jac into linsys
 
          // Factorize
-         Eigen::PartialPivLU<Mat> linsys_LU = linsys_.partialPivLu();
+         linsys_.factorize(1.0/(gamma * h));
          // ----------------------------------------------------------------
 
          // Stages
-         u1_ = linsys_LU.solve(tmp_rhs_);
+         linsys_.solve(u1_, tmp_rhs_);
 
          ynew_ = y_ + a21*u1_;
          rhs(t_ + c2*h, ynew_, tmp_rhs_);
          // TODO; store tmp_rhs + .. in buffers to avoid heap allocations!
-         u2_ = linsys_LU.solve(tmp_rhs_ + c21/h * u1_); 
+         linsys_.solve(u2_, tmp_rhs_ + c21/h * u1_); 
 
          ynew_ = y_ + a31*u1_ + a32*u2_;
          rhs(t_ + c3*h, ynew_, tmp_rhs_);
-         u3_ = linsys_LU.solve(tmp_rhs_ + c31/h * u1_ + c32/h * u2_);
+         linsys_.solve(u3_, tmp_rhs_ + c31/h * u1_ + c32/h * u2_);
 
          ynew_ = y_ + a41*u1_ + a42*u2_ + a43*u3_;
          rhs(t_ + c4*h, ynew_, tmp_rhs_);
-         u4_ = linsys_LU.solve(tmp_rhs_ + c41/h * u1_ + c42/h * u2_ + c43/h * u3_);
+         linsys_.solve(u4_, tmp_rhs_ + c41/h * u1_ + c42/h * u2_ + c43/h * u3_);
 
          ynew_ = y_ + a51*u1_ + a52*u2_ + a53*u3_ + a54*u4_;
          rhs(t_ + h, ynew_, tmp_rhs_);
-         u5_ = linsys_LU.solve(tmp_rhs_ + c51/h * u1_ + c52/h * u2_ + c53/h * u3_+ c54/h * u4_);
+         linsys_.solve(u5_, tmp_rhs_ + c51/h * u1_ + c52/h * u2_ + c53/h * u3_+ c54/h * u4_);
 
          // Embedded solution
          embedded_ = ynew_ + u5_; // Holds Embedded solution
          rhs(t_ + h, embedded_, tmp_rhs_);
-         u6_ = linsys_LU.solve(tmp_rhs_ + c61/h * u1_ + c62/h * u2_ + c63/h * u3_+ c64/h * u4_ + c65/h * u5_);
+         linsys_.solve(u6_, tmp_rhs_ + c61/h * u1_ + c62/h * u2_ + c63/h * u3_+ c64/h * u4_ + c65/h * u5_);
 
          ynew_ = embedded_ + u6_; // Finally construct ynew
          
@@ -147,9 +143,7 @@ class Rodas4 {
       double t_ = 0.0, tprev_ = 0.0, h_ = 0.0;
       Vec yprev_, y_, ynew_, tmp_rhs_, embedded_; // TODO; get rid of ynew? and more?
       Vec yinterp1_, yinterp2_;
-      Mat jac_, linsys_;
-
-      Eigen::PartialPivLU<Mat> jac_lu;
+      LinSys linsys_;
 
       // stages
       Vec u1_, u2_, u3_, u4_, u5_, u6_;
