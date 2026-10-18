@@ -1,4 +1,4 @@
-// Tests for BlockTriMat: construction, block accessors, to_dense, setZero and the dense LU solve.
+// Tests for BlockTriMat: construction, block accessors, to_dense, setZero, the dense LU solve and row scaling.
 // Uses a CHECK macro instead of assert so the tests also run in Release builds.
 
 #include <iostream>
@@ -118,6 +118,47 @@ void test_solve()
     CHECK(y(0) == 0.0 && y(7) == 0.0);
 }
 
+// multiply_rowwise(f) takes one factor per block and scales both rows of block row b
+// by f(b), i.e. A <- diag(f0, f0, f1, f1, ...) A.
+// Every block row gets a different factor, so scaling columns instead of rows, using
+// the factor of the wrong block row, or skipping a block all change the result.
+// The factors are small integers, so the products are exact and == can be used.
+void test_multiply_rowwise()
+{
+    BlockTriMat A = three_block_matrix();
+    const Mat M = A.to_dense();
+
+    Vec f(3);
+    f << 2, 5, 11;
+    Vec f_rows(6);                   // f with each factor repeated for both rows of its block
+    f_rows << 2, 2, 5, 5, 11, 11;
+
+    A.multiply_rowwise(f);
+    CHECK(A.to_dense() == f_rows.asDiagonal() * M);
+
+    // Spot checks against hand-computed entries, one per kind of block
+    const Mat S = A.to_dense();
+    CHECK(S(1, 0) == 2 * 1.0);      // diag(0), block row 0
+    CHECK(S(1, 3) == 2 * 4.0);      // upper(0), block row 0
+    CHECK(S(2, 0) == 5 * 31.0);     // lower(0), block row 1
+    CHECK(S(5, 3) == 11 * 38.0);    // lower(1), block row 2
+
+    // A single block has only a diagonal block
+    BlockTriMat B(1);
+    B.diag(0) = mat2(1, 2, 3, 4);
+    Vec g(1);
+    g << 3;
+    B.multiply_rowwise(g);
+    CHECK(B.to_dense() == mat2(3, 6, 9, 12));
+
+    // The factors may be a view into a larger vector
+    BlockTriMat C = three_block_matrix();
+    Vec h = Vec::Zero(5);
+    h.segment(1, 3) = f;
+    C.multiply_rowwise(h.segment(1, 3));
+    CHECK(C.to_dense() == f_rows.asDiagonal() * M);
+}
+
 } // namespace
 
 int main()
@@ -127,6 +168,7 @@ int main()
     test_to_dense();
     test_set_zero();
     test_solve();
+    test_multiply_rowwise();
 
     if (failures > 0) {
         std::cerr << failures << " check(s) failed\n";

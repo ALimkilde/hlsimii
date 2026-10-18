@@ -42,3 +42,18 @@ void BlockTriMat::setZero()
    }
 
 }
+
+void BlockTriMat::multiply_rowwise(CRef<Vec> fac) {
+
+   for(Eigen::Index b = 0; b < num_blocks_; b++) {
+      const Eigen::Index u = b;
+      const Eigen::Index l = b-1;
+      const bool u_exist = u < num_blocks_ - 1;
+      const bool l_exist = l >= 0;
+
+      diag(b) *= fac(b);
+      if (u_exist) upper(u) *= fac(b);
+      if (l_exist) lower(l) *= fac(b);
+   }
+
+}

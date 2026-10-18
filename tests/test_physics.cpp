@@ -455,21 +455,16 @@ void test_assemble_jacobian()
     CHECK(std::abs(order - 2.0) < 0.1);
 }
 
-// Finite-difference check of both assembled Jacobians, Kq = dF/dq and Kv = dF/dv, on the zigzag
-// with damping on (and drag, if p has it). The node velocities are built from a chosen stretch
-// rate dlen/dt per edge (plus a sideways part), so the edges hit every branch of edge_force:
+// Node velocities for the zigzag, built from a chosen stretch rate dlen/dt per edge
+// (plus a sideways part), so with damping on the edges hit every branch of edge_force:
 //   edge 0: main only,     rate -0.5: damped     (T = 10,  c = 10, clips below -1)
 //   edge 1: slack,         rate -0.3
 //   edge 2: main + backup, rate -0.3: damped     (T = 171, c = 37, clips below -4.6)
 //   edge 3: main + backup, rate -4.0: clipped    (T = 128, c = 48, clips below -2.67)
 //   edge 4: main only,     rate +3.8: stretching (not chosen: fixed by the right anchor standing still)
 // The node velocities are also mostly sideways to the edges, so drag (when on) is far from zero.
-void check_assemble_jacobians(const Params& p, const char* name)
+Mat2X zigzag_velocities(const LineModel& m, const Zigzag& z)
 {
-    const Zigzag z = zigzag();
-    const LineModel m(five_edge_line(), z.left, z.right, p);
-    const Eigen::Index n = z.q.size();
-
     const double rate[4] = {-0.5, -0.3, -0.3, -4.0};
     const double side[4] = {0.4, 0.7, 0.5, 0.6};
     Mat2X v(2, 4);
@@ -480,6 +475,18 @@ void check_assemble_jacobians(const Params& p, const char* name)
         v.col(e) = v_prev + rate[e] * u + side[e] * u_perp;
         v_prev = v.col(e);
     }
+    return v;
+}
+
+// Finite-difference check of both assembled Jacobians, Kq = dF/dq and Kv = dF/dv, on the zigzag
+// with damping on (and drag, if p has it), using zigzag_velocities.
+void check_assemble_jacobians(const Params& p, const char* name)
+{
+    const Zigzag z = zigzag();
+    const LineModel m(five_edge_line(), z.left, z.right, p);
+    const Eigen::Index n = z.q.size();
+
+    const Mat2X v = zigzag_velocities(m, z);
     const Vec2 u4 = m.edge_vector(z.q, 4).normalized();
     CHECK(m.vel_vector(v, 4).dot(u4) > 1.0);   // edge 4 really is stretching, away from the kink
 
@@ -786,6 +793,80 @@ void test_rhs_static_equilibrium()
     m.remove_slackliner();
 }
 
+// Finite-difference check of the full ODE Jacobian J = d(dy)/dy that rhs returns through Kq and Kv.
+// With y = [q | v] and dy = [v | F/m], J has the block structure
+//     J = [ 0             | I             ]
+//         [ diag(1/m) Kq  | diag(1/m) Kv  ]
+// The dense J is built from the returned Kq, Kv and compared column by column to the central
+// difference of rhs. Damping and drag are on and the zigzag velocities hit every edge_force branch.
+// Checked without and with a slackliner, so the per-node mass division (incl. the extra mass) is tested.
+void check_rhs_jacobian(const LineModel& m, const Zigzag& z, const char* name)
+{
+    const Eigen::Index n = z.q.size();   // 8 position coordinates, 16 state entries
+    const Vec y = pack_state(z.q, zigzag_velocities(m, z));
+
+    BlockTriMat Kq(4), Kv(4);
+    poison(Kq);
+    poison(Kv);
+    Vec dy(2 * n);
+    m.rhs(0.0, y, dy, &Kq, &Kv);
+    CHECK(Kq.to_dense().allFinite());
+    CHECK(Kv.to_dense().allFinite());
+
+    // dy must not depend on whether the Jacobians were requested
+    Vec dy_no_K(2 * n);
+    m.rhs(0.0, y, dy_no_K);
+    CHECK(dy_no_K == dy);
+
+    // Requesting only one Jacobian gives the same blocks
+    BlockTriMat Kq_only(4), Kv_only(4);
+    poison(Kq_only);
+    poison(Kv_only);
+    m.rhs(0.0, y, dy_no_K, &Kq_only);
+    m.rhs(0.0, y, dy_no_K, nullptr, &Kv_only);
+    CHECK(Kq_only.to_dense() == Kq.to_dense());
+    CHECK(Kv_only.to_dense() == Kv.to_dense());
+
+    Mat J = Mat::Zero(2 * n, 2 * n);
+    J.topRightCorner(n, n).setIdentity();
+    J.bottomLeftCorner(n, n) = Kq.to_dense();
+    J.bottomRightCorner(n, n) = Kv.to_dense();
+
+    const double h = 1e-6;
+    Mat J_fd(2 * n, 2 * n);
+    Vec dy_p(2 * n), dy_m(2 * n);
+    for (Eigen::Index j = 0; j < 2 * n; ++j) {
+        Vec yp = y, ym = y;
+        yp[j] += h;
+        ym[j] -= h;
+        m.rhs(0.0, yp, dy_p);
+        m.rhs(0.0, ym, dy_m);
+        J_fd.col(j) = (dy_p - dy_m) / (2.0 * h);
+    }
+
+    const double err = (J - J_fd).cwiseAbs().maxCoeff();
+    std::printf("rhs Jacobian FD check (zigzag, %s): max err %.3e (max |J| %.3e)\n",
+                name, err, J_fd.cwiseAbs().maxCoeff());
+    CHECK(err <= 1e-6 * std::max(1.0, J_fd.cwiseAbs().maxCoeff()));
+}
+
+void test_rhs_jacobian()
+{
+    Params p;
+    p.tau_KV = 0.1;
+    p.c_drag = 1.15;
+    p.webbing_width = 1.0;   // wide webbing: drag terms as large as the damping terms
+
+    const Zigzag z = zigzag();
+    const LineModel m(five_edge_line(), z.left, z.right, p);
+
+    check_rhs_jacobian(m, z, "no slackliner");
+
+    m.place_slackliner(2, 80.0);
+    check_rhs_jacobian(m, z, "slackliner on node 2");
+    m.remove_slackliner();
+}
+
 // Round drag parameters and no gravity, so the drag forces below can be checked by hand.
 // For three_edge_line, every edge has c = 0.5 * rho * C_d * w * (l_main + l_backup) = 0.5 * 0.1 * 2.2 = 0.11
 Params drag_params()
@@ -962,6 +1043,7 @@ int main()
     test_rhs_layout();
     test_rhs_free_fall();
     test_rhs_static_equilibrium();
+    test_rhs_jacobian();
     test_edge_drag();
     test_edge_drag_jacobian();
     test_assemble_drag_terminal_velocity();

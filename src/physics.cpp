@@ -391,28 +391,34 @@ bool LineModel::static_solver(Vec& q, double tol) const {
 }
 
 
-void LineModel::rhs(double t, CRef<Vec> z, Ref<Vec> dz) const {
+void LineModel::rhs(double t, CRef<Vec> z, Ref<Vec> dz, BlockTriMat* Kq, BlockTriMat* Kv) const {
 
    assert(z.size() ==  dz.size());
 
    ConstStateView s = const_state_view(z);
    StateView ds = state_view(dz);
 
-   rhs(s.q, s.v, ds.q, ds.v);
+   rhs(s.q, s.v, ds.q, ds.v, Kq, Kv);
 }
 
 
-void LineModel::rhs(CRef<Mat2X> q, CRef<Mat2X> v, Ref<Mat2X> dq, Ref<Mat2X> dv) const {
+void LineModel::rhs(CRef<Mat2X> q, CRef<Mat2X> v, Ref<Mat2X> dq, Ref<Mat2X> dv, BlockTriMat* Kq, BlockTriMat* Kv) const {
 
    // Compute forces
-   assemble(q, v, dv); // No Jacobian for now
+   assemble(q, v, dv, Kq, Kv); 
 
    // Set change in positions based on velocity
    dq = v; 
 
    // Set change in velocities based on forces
+   // TODO; we should probably precompute minv! 
    Eigen::Map<const Eigen::RowVectorXd> m(m_.data(), m_.size());
+   Vec minv = m.cwiseInverse();
+
    dv.array().rowwise() /= m.array();
+
+   if (Kq) Kq->multiply_rowwise( minv );
+   if (Kv) Kv->multiply_rowwise( minv );
 
 }
 

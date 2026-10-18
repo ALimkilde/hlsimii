@@ -61,6 +61,8 @@ class BlockTriMat {
       Mat2& diag(const int i) { return D[i]; }
       const Mat2& diag(const int i) const { return D[i]; }
 
+      void multiply_rowwise(CRef<Vec> fac);
+
       int n() const { return num_blocks_ * 2; }
       int num_blocks() const { return num_blocks_; }
    private: 

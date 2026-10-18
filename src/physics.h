@@ -51,8 +51,8 @@ class LineModel {
 
       // === Dynamic Solves === //
       // ODE: z = [q | v} input state; dz output rhs = [v | F/m]
-      void rhs(double t, CRef<Vec> z, Ref<Vec> dz) const;  // Out facing API
-      void rhs(CRef<Mat2X> q, CRef<Mat2X> v, Ref<Mat2X> dq, Ref<Mat2X> dv) const;  // Internal implementation
+      void rhs(double t, CRef<Vec> z, Ref<Vec> dz, BlockTriMat* Kq = nullptr, BlockTriMat* Kv = nullptr) const;  // Out facing API
+      void rhs(CRef<Mat2X> q, CRef<Mat2X> v, Ref<Mat2X> dq, Ref<Mat2X> dv, BlockTriMat* Kq = nullptr, BlockTriMat* Kv = nullptr) const;  // Internal implementation
                                 
       // === Static Solves === //
       void residual(const Vec& q_flat, Vec& r_flat, BlockTriMat* jac = nullptr) const;
@@ -79,7 +79,7 @@ class LineModel {
       Vec2 edge_drag(Eigen::Index e, const Vec2& dq, const Vec2& v, Mat2* Kq = nullptr, Mat2* Kv = nullptr) const;
 
       void assemble(CRef<Mat2X> q, CRef<Mat2X> v, Ref<Mat2X> F, BlockTriMat* Kq = nullptr, BlockTriMat* Kv = nullptr) const; // Compute net forces in F and Jac in K
-                                                                                      //
+
       double get_mass(const int i) const {
          return m_[i];
       }
