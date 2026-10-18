@@ -14,7 +14,7 @@ FallSimulator::FallSimulator(const LineModel& linemodel, const SlacklinerConfig&
 }
 
 // TODO; warn if leash is lower than l_leg!
-SimData FallSimulator::simulate(const double tend, const double dt_out, CRef<Mat2X> q0, CRef<Mat2X> v0)
+SimData FallSimulator::simulate(const double tend, const double dt_out, CRef<Mat2X> q0, CRef<Mat2X> v0, const double atol, const double rtol)
 {
   // Initialize
   SimData data;
@@ -55,6 +55,9 @@ SimData FallSimulator::simulate(const double tend, const double dt_out, CRef<Mat
      if (solvertype_ == SolverType::RungeKutta45) {
         rk45::RKOptions opt;
         opt.dt_out = dt_out;
+        opt.atol = atol;
+        opt.rtol = rtol;
+
         rk45::RKResult r = rk45::integrate_rk45(rhs, events, 1, output_obs, step_obs, t, tend, z, opt);
         t = r.t;
         reason_was_event = r.reason == rk45::StopReason::Event;
@@ -63,6 +66,8 @@ SimData FallSimulator::simulate(const double tend, const double dt_out, CRef<Mat
      } else if (solvertype_ == SolverType::Rosenbrock43) {
         rodas4::Rodas4Options opt;
         opt.dt_out = dt_out;
+        opt.atol = atol;
+        opt.rtol = rtol;
 
         rodas4::Rodas4Result r = rodas4::integrate_rodas4<RodasLineModelLinSys>(rhs, rhsjac, events, 1, output_obs, step_obs, t, tend, z, opt);
         t = r.t;

@@ -1,0 +1,4 @@
+# Regression fixture: the webbings the regression configs use, copied from data/webbings.yaml.
+joker:    {stretch_pct: 3.6,  tension_kN: 5, weight_g_m: 54}
+solid:    {stretch_pct: 2.5,  tension_kN: 5, weight_g_m: 50}
+y2k:      {stretch_pct: 1.0,  tension_kN: 5, weight_g_m: 33}

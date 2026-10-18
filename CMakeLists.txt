@@ -61,8 +61,21 @@ add_executable(test_progress_bar tests/test_progress_bar.cpp)
 target_include_directories(test_progress_bar PRIVATE src)
 add_test(NAME progress_bar COMMAND test_progress_bar)
 
+# Regression: both solvers against the goldens in tests/data/regression/golden/
+add_executable(test_regression tests/test_regression.cpp)
+target_link_libraries(test_regression PRIVATE hlsim_yaml)
+target_compile_definitions(test_regression PRIVATE HLSIM_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+add_test(NAME regression COMMAND test_regression)
+# Minutes in Debug, under a second in Release; skip with ctest -LE slow
+set_tests_properties(regression PROPERTIES LABELS slow)
+
+# Writes those goldens; run by hand, not part of ctest
+add_executable(make_golden tests/make_golden.cpp)
+target_link_libraries(make_golden PRIVATE hlsim_yaml)
+target_compile_definitions(make_golden PRIVATE HLSIM_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-  foreach(target hlsim_core hlsim_yaml hlsimii test_line_mesh test_config test_physics test_linalg test_free_fall test_fall_simulator test_rk45 test_rodas test_progress_bar)
+  foreach(target hlsim_core hlsim_yaml hlsimii test_line_mesh test_config test_physics test_linalg test_free_fall test_fall_simulator test_rk45 test_rodas test_progress_bar test_regression make_golden)
     target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic)
   endforeach()
 endif()

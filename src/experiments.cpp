@@ -5,7 +5,7 @@
 #include <algorithm>
 
 
-FallResults Experiments::simulate(const SimConfig& cfg, const DiscreteLine& dline, const double t_end, const double dt_out, const std::vector<bool>& break_segments, SolverType solvertype) {
+FallResults Experiments::simulate(const SimConfig& cfg, const DiscreteLine& dline, const double t_end, const double dt_out, const std::vector<bool>& break_segments, SolverType solvertype, const double atol, const double rtol) {
 
    const Vec2 anchor_left(0.0, 0.0), anchor_right(cfg.L, 0.0);
    const Params params{};
@@ -31,7 +31,7 @@ FallResults Experiments::simulate(const SimConfig& cfg, const DiscreteLine& dlin
 
    FallResults fallresults{};
 
-   fallresults.leash = fallsim.simulate(t_end, dt_out, as_const_mat2x(q0), as_const_mat2x(v0));
+   fallresults.leash = fallsim.simulate(t_end, dt_out, as_const_mat2x(q0), as_const_mat2x(v0), atol, rtol);
 
    const bool any_break = std::find(break_segments.begin(), break_segments.end(), true) != break_segments.end();
    if ( any_break ) {
@@ -40,7 +40,7 @@ FallResults Experiments::simulate(const SimConfig& cfg, const DiscreteLine& dlin
 
       FallSimulator fallsim_broken(broken_model, cfg.slackliner, node_slackliner, solvertype);
 
-      fallresults.backup = fallsim_broken.simulate(t_end, dt_out, as_const_mat2x(q0), as_const_mat2x(v0));
+      fallresults.backup = fallsim_broken.simulate(t_end, dt_out, as_const_mat2x(q0), as_const_mat2x(v0), atol, rtol);
       fallresults.has_backup_fall = true;
    }
 

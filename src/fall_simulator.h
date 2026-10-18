@@ -40,7 +40,7 @@ class FallSimulator {
 
       // Does time integration, detects events and restarts;
       // Frames are recorded every dt_out
-      SimData simulate(const double tend, const double dt_out, CRef<Mat2X> q0, CRef<Mat2X> v0);
+      SimData simulate(const double tend, const double dt_out, CRef<Mat2X> q0, CRef<Mat2X> v0, const double atol, const double rtol);
 
       // Harness height: free fall while the leash is slack, hanging l_leash below the node while taut
       double y_slackliner(const double t, CRef<Mat2X> q) const;

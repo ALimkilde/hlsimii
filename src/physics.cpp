@@ -365,7 +365,6 @@ bool LineModel::static_solver(Vec& q, double tol) const {
        residual(q, r, &Jac);
 
        if (r.norm() < tol) { 
-          std::cout << "converged in " << i << " iterations\n"; 
           return true; }
 
        Jac.solve(dq, -r);
