@@ -65,6 +65,8 @@ SimData FallSimulator::simulate(const double tend, const double dt_out, CRef<Mat
         rodas4::Rodas4Result r = rodas4::integrate_rodas4<RodasLineModelLinSys>(rhs, rhsjac, events, 1, output_obs, step_obs, t, tend, z, opt);
         t = r.t;
         reason_was_event = r.reason == rodas4::StopReason::Event;
+        data.n_accepts += r.n_accepts;
+        data.n_rejects += r.n_rejects;
      }
 
      StateView s = state_view(z);

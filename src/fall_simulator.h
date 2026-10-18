@@ -29,6 +29,9 @@ struct SimData {
    std::vector<double> gravitational_energy;
    std::vector<double> elastic_energy;
    std::vector<double> kinetic_energy;
+
+   int n_accepts = 0;
+   int n_rejects = 0;
 };
 
 class FallSimulator {

@@ -33,6 +33,8 @@ struct Rodas4Result {
    StopReason reason;
    double t;          // where integration stopped
    int event_index;   // which event fired (-1 if none)
+   int n_accepts;        
+   int n_rejects;        
 };
 
 // Returns new stepsize
@@ -292,6 +294,9 @@ Rodas4Result integrate(Stepper& stepper, Rhs&& rhs, RhsJac rhsjac, Events&& even
    OutputGrid grid(opt.dt_out, t0);
    double t_out;
    Vec z_out(z.size());
+
+   int n_rejects = 0;
+   int n_accepts = 0;
    
    for (int step = 0; step < opt.max_steps; ++step) {
       const double t = stepper.t();
@@ -304,30 +309,30 @@ Rodas4Result integrate(Stepper& stepper, Rhs&& rhs, RhsJac rhsjac, Events&& even
             z_out = z;
             if (!on_output(t_out, z_out)) { // Calls on_output
                z = z_out;
-               return {StopReason::ObserverStop, t_out, -1};
+               return {StopReason::ObserverStop, t_out, -1, n_accepts, n_rejects};
             }
             grid.advance();
          }
 
-         return {StopReason::ReachedEnd, t, -1};
+         return {StopReason::ReachedEnd, t, -1, n_accepts, n_rejects};
       }
 
       h = std::min(h, tend - t);
       if (h < opt.hmin) {
          z = stepper.state();
-         return {StopReason::StepTooSmall, t, -1};
+         return {StopReason::StepTooSmall, t, -1, n_accepts, n_rejects};
       }
 
       const double err = stepper.try_step(rhs, rhsjac, h, opt.rtol, opt.atol);
       if (!(err <= 1.0)) {   // Also rejects NaN
          h = newStepSize(h, err, after_reject); 
-         after_reject = true;
+         after_reject = true; n_rejects++; 
          continue;
       }
       
       const double h_next = newStepSize(h, err, after_reject); 
       stepper.accept();
-      after_reject = false;
+      after_reject = false; n_accepts++;
 
       // Event handling
       events(stepper.t(), stepper.state(), g);
@@ -347,7 +352,7 @@ Rodas4Result integrate(Stepper& stepper, Rhs&& rhs, RhsJac rhsjac, Events&& even
          stepper.interpolate(t_out, z_out);
          if (!on_output(t_out, z_out)) { // Calls on_output
             z = z_out;
-            return {StopReason::ObserverStop, t_out, -1};
+            return {StopReason::ObserverStop, t_out, -1, n_accepts, n_rejects};
          }
 
          grid.advance();
@@ -355,12 +360,12 @@ Rodas4Result integrate(Stepper& stepper, Rhs&& rhs, RhsJac rhsjac, Events&& even
 
       if (!on_step(t_stop, z_stop)) { // Note that this calls on_step for every step
          z = z_stop;
-         return {StopReason::ObserverStop, t_stop, -1};
+         return {StopReason::ObserverStop, t_stop, -1, n_accepts, n_rejects};
       }
 
       if (event >= 0) {
          z = z_stop;
-         return {StopReason::Event, t_stop, event};
+         return {StopReason::Event, t_stop, event, n_accepts, n_rejects};
       }
 
       // Update event
@@ -370,7 +375,7 @@ Rodas4Result integrate(Stepper& stepper, Rhs&& rhs, RhsJac rhsjac, Events&& even
    }
 
    z = stepper.state();
-   return {StopReason::MaxSteps, stepper.t(), -1};
+   return {StopReason::MaxSteps, stepper.t(), -1, n_accepts, n_rejects};
 
 };
 
