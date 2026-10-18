@@ -28,6 +28,8 @@ struct RKResult {
    StopReason reason;
    double t;          // where integration stopped
    int event_index;   // which event fired (-1 if none)
+   int n_accepts;
+   int n_rejects;
 };
 
 
@@ -230,26 +232,31 @@ RKResult integrate(Stepper& stepper, Rhs&& rhs, Events&& events, const int n_eve
 
    double h = std::min({opt.h0, opt.hmax, tend - t0});
 
+   int n_rejects = 0;
+   int n_accepts = 0;
+
    for (int step = 0; step < opt.max_steps; ++step) {
       const double t = stepper.t();
       if (tend - t <= detail::min_step(t)) {
          z = stepper.state();
-         return {StopReason::ReachedEnd, t, -1};
+         return {StopReason::ReachedEnd, t, -1, n_accepts, n_rejects};
       }
 
       h = std::min(h, tend - t);
       if (h < detail::min_step(t)) {
          z = stepper.state();
-         return {StopReason::StepTooSmall, t, -1};
+         return {StopReason::StepTooSmall, t, -1, n_accepts, n_rejects};
       }
 
       const double err = stepper.try_step(rhs, h, opt.rtol, opt.atol);
       if (!(err <= 1.0)) {   // Also rejects NaN
          h = controller.reject(err, h);
+         n_rejects++;
          continue;
       }
       const double h_next = controller.accept(err, h);
       stepper.accept();
+      n_accepts++;
 
       // Events: the step ends at the earliest root, the rest of the step never happens
       events(stepper.t(), stepper.state(), g);
@@ -269,19 +276,19 @@ RKResult integrate(Stepper& stepper, Rhs&& rhs, Events&& events, const int n_eve
             stepper.interpolate(t_out, z_out);
             if (!on_output(t_out, z_out)) {
                z = z_out;
-               return {StopReason::ObserverStop, t_out, -1};
+               return {StopReason::ObserverStop, t_out, -1, n_accepts, n_rejects};
             }
          }
       }
 
       if (!on_step(t_stop, z_stop)) {
          z = z_stop;
-         return {StopReason::ObserverStop, t_stop, -1};
+         return {StopReason::ObserverStop, t_stop, -1, n_accepts, n_rejects};
       }
 
       if (event >= 0) {
          z = z_stop;
-         return {StopReason::Event, t_stop, event};
+         return {StopReason::Event, t_stop, event, n_accepts, n_rejects};
       }
 
       g_prev.swap(g);
@@ -289,7 +296,7 @@ RKResult integrate(Stepper& stepper, Rhs&& rhs, Events&& events, const int n_eve
    }
 
    z = stepper.state();
-   return {StopReason::MaxSteps, stepper.t(), -1};
+   return {StopReason::MaxSteps, stepper.t(), -1, n_accepts, n_rejects};
 }
 
 // Dormand-Prince 5(4) integration, see integrate()

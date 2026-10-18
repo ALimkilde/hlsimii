@@ -84,7 +84,8 @@ void print_summary(const std::string& label, const SimData& data)
               << "  peak anchor forces   " << data.peak_force_anchors[0] / 1000.0 << " / "
               << data.peak_force_anchors[1] / 1000.0 << " kN\n"
               << "  lowest webbing       " << data.lowest_point_webbing << " m\n"
-              << "  lowest slackliner    " << data.lowest_point_slackliner << " m\n";
+              << "  lowest slackliner    " << data.lowest_point_slackliner << " m\n"
+              << "  solver steps         " << data.n_accepts << " accepted, " << data.n_rejects << " rejected\n";
 }
 
 SolverType parse_solver(const std::string& name)

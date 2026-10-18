@@ -58,6 +58,8 @@ SimData FallSimulator::simulate(const double tend, const double dt_out, CRef<Mat
         rk45::RKResult r = rk45::integrate_rk45(rhs, events, 1, output_obs, step_obs, t, tend, z, opt);
         t = r.t;
         reason_was_event = r.reason == rk45::StopReason::Event;
+        data.n_accepts += r.n_accepts;
+        data.n_rejects += r.n_rejects;
      } else if (solvertype_ == SolverType::Rosenbrock43) {
         rodas4::Rodas4Options opt;
         opt.dt_out = dt_out;
