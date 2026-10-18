@@ -72,6 +72,11 @@ Testing/
 .claude
 CLAUDE.md
 
+# uv
+.python-version
+pyproject.toml
+uv.lock
+
 # latex
 docs/*.aux
 docs/*.fdb_latexmk

@@ -2,96 +2,99 @@
 
 ## 1. State representation
 
-- [x] Define the highline segmented representation
-- [x] Decide and document boundary representation.
-- [x] Define the ODE state and indexing.
-- [x] Use contiguous storage:
+- [X] Define the highline segmented representation
+- [X] Decide and document boundary representation.
+- [X] Define the ODE state and indexing.
+- [X] Use contiguous storage:
   - `q = [x0, y0, x1, y1, ...]`
   - `v = [vx0, vy0, vx1, vy1, ...]`
   - `state = [q | v]`
-- [x] Use `Eigen::VectorXd` for the underlying state.
-- [x] Use `Eigen::Map` for zero-copy N × 2 views of positions and velocities.
+- [X] Use `Eigen::VectorXd` for the underlying state.
+- [X] Use `Eigen::Map` for zero-copy N × 2 views of positions and velocities.
 
 ## 2. Implement Statix Mechanics kernel
 
-- [x] Implement spring forces/accelerations with explicit loops.
-- [x] Avoid unnecessary temporary allocations.
-- [x] Keep mechanics independent of the ODE integrator.
-- [x] Implement boundary conditions cleanly.
-- [x] Add basic physics tests:
-  - [x] Single spring
-  - [x] Equilibrium
-  - [x] Equal/opposite forces
-  - [x] Gravity
-  - [x] Slack/taut spring
-  - [x] Boundary behavior
+- [X] Implement spring forces/accelerations with explicit loops.
+- [X] Avoid unnecessary temporary allocations.
+- [X] Keep mechanics independent of the ODE integrator.
+- [X] Implement boundary conditions cleanly.
+- [X] Add basic physics tests:
+  - [X] Single spring
+  - [X] Equilibrium
+  - [X] Equal/opposite forces
+  - [X] Gravity
+  - [X] Slack/taut spring
+  - [X] Boundary behavior
 
 ## 3. Static solver
 
-- [x] Implement static equilibrium solves.
-- [x] Use the same force calculation as the dynamic model.
-- [x] Verify solutions physically.
-- [x] Add slackliner to static equations
-- [ ] Add pull_to_tension functionality
+- [X] Implement static equilibrium solves.
+- [X] Use the same force calculation as the dynamic model.
+- [X] Verify solutions physically.
+- [X] Add slackliner to static equations
+- [ ] Add pull_to_tension functionality <------ TODO
 
 ## 4. Spring Jacobian
 
-- [x] Derive and implement the analytic spring Jacobian.
-- [x] Use it to accelerate Newton/static solves.
-- [x] Compare analytic derivatives against finite differences.
-- [x] Test the Jacobian at many random physically reasonable configurations.
-- [x] Investigate carefully around `max(..., 0)` transitions.
+- [X] Derive and implement the analytic spring Jacobian.
+- [X] Use it to accelerate Newton/static solves.
+- [X] Compare analytic derivatives against finite differences.
+- [X] Test the Jacobian at many random physically reasonable configurations.
+- [X] Investigate carefully around `max(..., 0)` transitions.
 
 ## 5. Extend Static Mechanics to Dynamic;
 
-- [ ] Refactor assemble to loop over edges.
-- [x] Make stuff from assemble reusable?
-- [x] Implement rhs
-- [ ] Test on leash fall
-- [ ] Extend to backup fall
+- [X] Refactor assemble to loop over edges. 
+- [X] Make stuff from assemble reusable?
+- [X] Implement rhs
+- [X] Implement class for full fall simulations - header
+- [X] Test on leash fall
+- [X] Extend to backup fall
+- [X] Figure out how to log data from the simulations!
 
 ## 5. RK45 reference integrator
 
-- [ ] Have Claude implement a clean adaptive RK45.
-- [ ] Keep the integrator independent of the mechanics.
-- [ ] Use RK45 as a reference solver rather than the final performance target.
+- [X] Have Claude implement a clean adaptive RK45.
+- [X] Keep the integrator independent of the mechanics.
+- [X] Use RK45 as a reference solver rather than the final performance target.
 
 ## 6. Springs + RK45
 
-- [ ] Run the spring-only dynamics.
-- [ ] Compare against known/simple cases.
-- [ ] Check energy behavior where appropriate.
+- [X] Run the spring-only dynamics.
+- [X] Compare against known/simple cases.
 
 ## 7. Add drag
 
-- [ ] Add drag to the mechanics kernel.
-- [ ] Validate against simple cases with known behavior.
-- [ ] Re-run RK45 tests.
+- [X] Add drag to the mechanics kernel.
+- [X] Validate against simple cases with known behavior.
+- [X] Re-run RK45 tests.
 
 ## 8. Add Kelvin–Voigt damping
 
-- [ ] Add Kelvin–Voigt damping.
-- [ ] Validate independently.
-- [ ] Re-run the mechanical tests.
-- [ ] Compare behavior with/without damping.
+- [X] Add Kelvin–Voigt damping.
+- [X] Validate independently.
+- [X] Re-run the mechanical tests.
+- [X] Compare behavior with/without damping.
 
 ## 9. Full analytic Jacobian
 
-- [ ] Derive the Jacobian of the complete system:
-  - [ ] Springs
-  - [ ] Drag
-  - [ ] Kelvin–Voigt damping
-- [ ] Validate against finite differences.
-- [ ] Pay particular attention to signs and mass scaling.
-- [ ] Keep the Jacobian implementation independent from the eventual optimized solver.
+- [X] Derive the Jacobian of the complete system:
+  - [X] Springs
+  - [X] Drag
+  - [X] Kelvin–Voigt damping
+- [X] Validate against finite differences.
+- [X] Keep the Jacobian implementation independent from the eventual optimized solver.
 
 ## 10. RODAS4 — first implementation
 
-- [ ] Verify the RODAS4 coefficients and equations.
-- [ ] Implement RODAS4 incrementally with Claude as a coding/review assistant.
-- [ ] Initially use:
-  - [ ] Dense Jacobian
-  - [ ] Eigen dense LU
+- [X] Verify the RODAS4 coefficients and equations.
+- [X] Figure out a good interface for rhs and linear problems
+- [X] Implement RODAS4 incrementally with Claude as a coding/review assistant.
+  - [X] Fixed step size
+  - [X] Adaptive step size
+- [X] Initially use:
+  - [X] Dense Jacobian
+  - [X] Eigen dense LU
   - [ ] No structural optimization
 - [ ] Compare RODAS4 against RK45 on representative problems.
 - [ ] Verify adaptive timestep behavior and convergence.
@@ -102,11 +105,11 @@
 - [ ] Add regression tests.
 - [ ] Save representative trajectories/results.
 - [ ] Treat this as the reference implementation for later optimization.
-- [ ] Add event handling:
-  - [ ] Detect event crossings
-  - [ ] Locate roots
-  - [ ] Restart integration at events
-- [ ] Start with robust/simple root finding such as bisection before optimizing it.
+- [X] Add event handling:
+  - [X] Detect event crossings
+  - [X] Locate roots
+  - [X] Restart integration at events
+- [X] Start with robust/simple root finding such as bisection before optimizing it.
 
 ## 12. Structured Jacobian solver
 
@@ -152,6 +155,13 @@
 - [ ] Transfer only necessary inputs/results across the JS/WASM boundary.
 - [ ] Add visualization separately from the numerical core.
 - [ ] Add performance regression tests for representative simulations.
+
+## 16. Energy calculation
+
+- [ ] Make 'static' energy solver for lower point of fall (assume f = 0 for all other nodes, fx = 0 for slackliner node, and Ep_old + Ee_old = Ep_new + Ee_new)
+- [ ] Test the solver
+- [ ] Make solver with mass lumped in the middle.
+- [ ] Test against ISA - should give exactly the same!
 
 ## Milestones
 

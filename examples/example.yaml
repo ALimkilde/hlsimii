@@ -2,9 +2,9 @@
 plots: true        # open the force plot and the two RopePlayer windows
 gif: false           # write example.gif (leash fall animated above backup fall)
 
-L: 100              # length of highline spot [m]
+L: 110              # length of highline spot [m]
 N: 35               # number of discretization verticies
-T: 15                # length of simulation [s]
+T: 10                # length of simulation [s]
 # tension_kN: 1.35     # standing tension (or pull_webbing, exactly one of the two)
 pull_webbing: 2
 pull_side: right    # anchor side to pull from
@@ -18,4 +18,4 @@ slackliner:
 segments:
   - {main: joker, backup: solid, L_main: 30, L_backup: 32, break_mainline: true}
   - {main: joker, backup: solid, L_main: 30, L_backup: 32, break_mainline: false}
-  - {main: joker, backup: solid, L_main: 40, L_backup: 43, break_mainline: false}
+  - {main: joker, backup: solid, L_main: 50, L_backup: 53, break_mainline: false}
