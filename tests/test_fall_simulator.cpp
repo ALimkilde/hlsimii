@@ -53,7 +53,7 @@ FallSimulator simulator_with_slackliner_at(Eigen::Index node, const Params& p = 
 {
     const LineModel m(three_edge_line(), {0.0, 0.0}, {3.0, 0.0}, p);
     m.place_slackliner(static_cast<int>(node), slackliner().m);
-    return FallSimulator(m, slackliner(), node);
+    return FallSimulator(m, slackliner(), node, SolverType::RungeKutta45);
 }
 
 // z = [q | v] with q given column-wise as (x0, y0, x1, y1) and the nodes at rest.

@@ -1,4 +1,4 @@
-// Tests for the DP5 stepper and the generic integrate() driver, through rk45().
+// Tests for the DP5 stepper and the generic integrate() driver, through integrate_rk45().
 // Uses a CHECK macro instead of assert so the tests also run in Release builds.
 
 #include <cmath>
@@ -9,6 +9,12 @@
 #include "rk45.h"
 
 namespace {
+
+using rk45::DP5;
+using rk45::RKOptions;
+using rk45::RKResult;
+using rk45::StopReason;
+using rk45::integrate_rk45;
 
 int failures = 0;
 
@@ -55,7 +61,7 @@ void test_accuracy_follows_tolerance()
 {
     for (double tol : {1e-4, 1e-6, 1e-8, 1e-10}) {
         Vec z = oscillator_start();
-        const RKResult r = rk45(oscillator, no_events, 0, keep_going, keep_going, 0.0, 10.0, z, tolerances(tol));
+        const RKResult r = integrate_rk45(oscillator, no_events, 0, keep_going, keep_going, 0.0, 10.0, z, tolerances(tol));
         CHECK(r.reason == StopReason::ReachedEnd);
         CHECK(std::abs(z[0] - std::cos(10.0)) < 10.0 * tol);
         CHECK(std::abs(z[1] + std::sin(10.0)) < 10.0 * tol);
@@ -69,7 +75,7 @@ void test_step_count_scales_with_order()
         int n = 0;
         auto on_step = [&](double, CRef<Vec>) { ++n; return true; };
         Vec z = oscillator_start();
-        rk45(oscillator, no_events, 0, keep_going, on_step, 0.0, 10.0, z, tolerances(tol));
+        integrate_rk45(oscillator, no_events, 0, keep_going, on_step, 0.0, 10.0, z, tolerances(tol));
         return n;
     };
     const double ratio = static_cast<double>(count_steps(1e-10)) / count_steps(1e-6);
@@ -81,7 +87,7 @@ void test_reaches_tend_exactly()
 {
     Recorder steps;
     Vec z = oscillator_start();
-    const RKResult r = rk45(oscillator, no_events, 0, keep_going, std::ref(steps), 0.0, 3.0, z, tolerances(1e-8));
+    const RKResult r = integrate_rk45(oscillator, no_events, 0, keep_going, std::ref(steps), 0.0, 3.0, z, tolerances(1e-8));
     CHECK(r.reason == StopReason::ReachedEnd);
     CHECK(r.t == 3.0);
     CHECK(r.event_index == -1);
@@ -96,7 +102,7 @@ void test_output_grid()
     opt.dt_out = 0.1;
     Recorder out;
     Vec z = oscillator_start();
-    rk45(oscillator, no_events, 0, std::ref(out), keep_going, 0.0, 10.0, z, opt);
+    integrate_rk45(oscillator, no_events, 0, std::ref(out), keep_going, 0.0, 10.0, z, opt);
 
     CHECK(out.t.size() == 100);
     for (size_t i = 0; i < out.t.size(); ++i) {
@@ -113,7 +119,7 @@ void test_output_grid_from_offgrid_start()
     Recorder out;
     Vec z(2);
     z << std::cos(0.25), -std::sin(0.25);
-    rk45(oscillator, no_events, 0, std::ref(out), keep_going, 0.25, 1.0, z, opt);
+    integrate_rk45(oscillator, no_events, 0, std::ref(out), keep_going, 0.25, 1.0, z, opt);
 
     CHECK(out.t.size() == 8);   // 0.3, ..., 1.0
     CHECK(std::abs(out.t.front() - 0.3) < 1e-12);
@@ -125,7 +131,7 @@ void test_output_disabled()
 {
     Recorder out;
     Vec z = oscillator_start();
-    rk45(oscillator, no_events, 0, std::ref(out), keep_going, 0.0, 1.0, z, tolerances(1e-8));
+    integrate_rk45(oscillator, no_events, 0, std::ref(out), keep_going, 0.0, 1.0, z, tolerances(1e-8));
     CHECK(out.t.empty());
 }
 
@@ -136,7 +142,7 @@ void test_event_located()
     opt.dt_out = 0.5;
     Recorder out, steps;
     Vec z = oscillator_start();
-    const RKResult r = rk45(oscillator, x_zero, 1, std::ref(out), std::ref(steps), 0.0, 10.0, z, opt);
+    const RKResult r = integrate_rk45(oscillator, x_zero, 1, std::ref(out), std::ref(steps), 0.0, 10.0, z, opt);
 
     CHECK(r.reason == StopReason::Event);
     CHECK(r.event_index == 0);
@@ -155,8 +161,8 @@ void test_restart_after_event()
     opt.dt_out = 0.5;
     Recorder out;
     Vec z = oscillator_start();
-    RKResult r = rk45(oscillator, x_zero, 1, std::ref(out), keep_going, 0.0, 10.0, z, opt);
-    r = rk45(oscillator, x_zero, 1, std::ref(out), keep_going, r.t, 10.0, z, opt);
+    RKResult r = integrate_rk45(oscillator, x_zero, 1, std::ref(out), keep_going, 0.0, 10.0, z, opt);
+    r = integrate_rk45(oscillator, x_zero, 1, std::ref(out), keep_going, r.t, 10.0, z, opt);
 
     CHECK(r.reason == StopReason::Event);
     CHECK(std::abs(r.t - 3 * pi / 2) < 1e-8);
@@ -171,7 +177,7 @@ void test_earliest_event_wins()
     RKOptions opt = tolerances(1e-10);
     opt.h0 = 2.0;   // First trial step spans both roots
     Vec z = oscillator_start();
-    const RKResult r = rk45(oscillator, two_events, 2, keep_going, keep_going, 0.0, 10.0, z, opt);
+    const RKResult r = integrate_rk45(oscillator, two_events, 2, keep_going, keep_going, 0.0, 10.0, z, opt);
 
     CHECK(r.reason == StopReason::Event);
     CHECK(r.event_index == 1);
@@ -185,13 +191,13 @@ void test_observer_stop()
     opt.dt_out = 0.1;
     auto stop_after_1 = [](double t, CRef<Vec>) { return t < 1.0 - 1e-12; };
     Vec z = oscillator_start();
-    RKResult r = rk45(oscillator, no_events, 0, stop_after_1, keep_going, 0.0, 10.0, z, opt);
+    RKResult r = integrate_rk45(oscillator, no_events, 0, stop_after_1, keep_going, 0.0, 10.0, z, opt);
     CHECK(r.reason == StopReason::ObserverStop);
     CHECK(std::abs(r.t - 1.0) < 1e-12);
     CHECK(std::abs(z[0] - std::cos(1.0)) < 1e-8);
 
     z = oscillator_start();
-    r = rk45(oscillator, no_events, 0, keep_going, stop_after_1, 0.0, 10.0, z, opt);
+    r = integrate_rk45(oscillator, no_events, 0, keep_going, stop_after_1, 0.0, 10.0, z, opt);
     CHECK(r.reason == StopReason::ObserverStop);
     CHECK(r.t >= 1.0 - 1e-12 && r.t < 10.0);
     CHECK(std::abs(z[0] - std::cos(r.t)) < 1e-8);
@@ -202,7 +208,7 @@ void test_step_too_small()
 {
     auto nan_rhs = [](double, CRef<Vec>, Ref<Vec> dz) { dz.setConstant(std::nan("")); };
     Vec z = oscillator_start();
-    const RKResult r = rk45(nan_rhs, no_events, 0, keep_going, keep_going, 0.0, 1.0, z, tolerances(1e-8));
+    const RKResult r = integrate_rk45(nan_rhs, no_events, 0, keep_going, keep_going, 0.0, 1.0, z, tolerances(1e-8));
     CHECK(r.reason == StopReason::StepTooSmall);
     CHECK(r.t == 0.0);
     CHECK(z[0] == 1.0 && z[1] == 0.0);   // State untouched
@@ -214,7 +220,7 @@ void test_max_steps()
     RKOptions opt = tolerances(1e-10);
     opt.max_steps = 3;
     Vec z = oscillator_start();
-    const RKResult r = rk45(oscillator, no_events, 0, keep_going, keep_going, 0.0, 10.0, z, opt);
+    const RKResult r = integrate_rk45(oscillator, no_events, 0, keep_going, keep_going, 0.0, 10.0, z, opt);
     CHECK(r.reason == StopReason::MaxSteps);
     CHECK(r.t > 0.0 && r.t < 10.0);
 }

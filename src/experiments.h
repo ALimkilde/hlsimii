@@ -10,6 +10,6 @@ struct FallResults {
 };
 
 namespace Experiments {
-   FallResults simulate(const SimConfig& cfg, const DiscreteLine& dline, const double t_end, const double dt_out, const std::vector<bool>& break_segments);
+   FallResults simulate(const SimConfig& cfg, const DiscreteLine& dline, const double t_end, const double dt_out, const std::vector<bool>& break_segments, SolverType solvertype);
 
 }

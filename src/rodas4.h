@@ -16,6 +16,8 @@
 //             https://www.unige.ch/~hairer/software.html
 //
 
+namespace rodas4 {
+
 struct Rodas4Options {
    double rtol = 1e-5, atol = 1e-5;
    int max_steps = 1'000'000;
@@ -66,14 +68,14 @@ class Rodas4 {
       }
 
       // Autonomous RHS only!
-      template <class Rhs>
-      double try_step(Rhs& rhs, const double h, const double rtol, const double atol) {
+      template <class Rhs, class RhsJac>
+      double try_step(Rhs& rhs, RhsJac& rhsjac, const double h, const double rtol, const double atol) {
          h_ = h;
 
          // ----------------------------------------------------------------
          // TODO; find a way to skip this for rejected steps
          // ----------------------------------------------------------------
-         rhs(t_, y_, tmp_rhs_, linsys_.jacobian()); // Fill jac into linsys
+         rhsjac(t_, y_, tmp_rhs_, linsys_.jacobian()); // Fill jac into linsys
 
          // Factorize
          linsys_.factorize(1.0/(gamma * h));
@@ -268,8 +270,8 @@ namespace eventHandling {
    }
 }
 
-template <class Stepper, class Rhs, class Events, class OnOutput, class OnStep>
-Rodas4Result integrate(Stepper& stepper, Rhs&& rhs, Events&& events, const int n_events, OnOutput&& on_output, OnStep&& on_step, const double t0, const double tend, Ref<Vec> z, const Rodas4Options& opt){
+template <class Stepper, class Rhs, class RhsJac, class Events, class OnOutput, class OnStep>
+Rodas4Result integrate(Stepper& stepper, Rhs&& rhs, RhsJac rhsjac, Events&& events, const int n_events, OnOutput&& on_output, OnStep&& on_step, const double t0, const double tend, Ref<Vec> z, const Rodas4Options& opt){
 
    stepper.init(t0, z);
 
@@ -316,7 +318,7 @@ Rodas4Result integrate(Stepper& stepper, Rhs&& rhs, Events&& events, const int n
          return {StopReason::StepTooSmall, t, -1};
       }
 
-      const double err = stepper.try_step(rhs, h, opt.rtol, opt.atol);
+      const double err = stepper.try_step(rhs, rhsjac, h, opt.rtol, opt.atol);
       if (!(err <= 1.0)) {   // Also rejects NaN
          h = newStepSize(h, err, after_reject); 
          after_reject = true;
@@ -371,3 +373,16 @@ Rodas4Result integrate(Stepper& stepper, Rhs&& rhs, Events&& events, const int n
    return {StopReason::MaxSteps, stepper.t(), -1};
 
 };
+
+// Rosenbrock 4(3) integration
+template <class LinSys, class Rhs, class RhsJac, class Events, class OnOutput, class OnStep>
+Rodas4Result integrate_rodas4(Rhs&& rhs, RhsJac&& rhsjac, Events&& events, const int n_events, OnOutput&& on_output, OnStep&& on_step,
+              const double t0, const double tend, Ref<Vec> z, const Rodas4Options& opt)
+{
+   Rodas4<LinSys> stepper(z.size());
+   return integrate(stepper, rhs, rhsjac, events, n_events, on_output, on_step, t0, tend, z, opt);
+}
+
+} // Namespace
+
+ 

@@ -8,6 +8,8 @@
 #include "physics.h"
 #include "config.h"
 
+enum class SolverType { RungeKutta45, Rosenbrock43 };
+
 struct SimData {
    double peak_force_leash = 0.0;
    double peak_force_webbing = 0.0;
@@ -31,7 +33,7 @@ struct SimData {
 
 class FallSimulator {
    public:
-      explicit FallSimulator(const LineModel& linemodel, const SlacklinerConfig& slackliner, Eigen::Index node_slackliner);
+      explicit FallSimulator(const LineModel& linemodel, const SlacklinerConfig& slackliner, Eigen::Index node_slackliner, SolverType solvertype);
 
       // Does time integration, detects events and restarts;
       // Frames are recorded every dt_out
@@ -69,6 +71,8 @@ class FallSimulator {
       FreeFall freefall_;
       const SlacklinerConfig slackliner_;
       Eigen::Index node_slackliner_;
+
+      SolverType solvertype_;
 
 
 };

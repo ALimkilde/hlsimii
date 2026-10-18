@@ -5,7 +5,7 @@
 #include <algorithm>
 
 
-FallResults Experiments::simulate(const SimConfig& cfg, const DiscreteLine& dline, const double t_end, const double dt_out, const std::vector<bool>& break_segments) {
+FallResults Experiments::simulate(const SimConfig& cfg, const DiscreteLine& dline, const double t_end, const double dt_out, const std::vector<bool>& break_segments, SolverType solvertype) {
 
    const Vec2 anchor_left(0.0, 0.0), anchor_right(cfg.L, 0.0);
    const Params params{};
@@ -24,7 +24,7 @@ FallResults Experiments::simulate(const SimConfig& cfg, const DiscreteLine& dlin
    if (!model.static_solver(q0, tol))
       std::cerr << "warning: loaded static solver did not converge\n";
    
-   FallSimulator fallsim(model, cfg.slackliner, node_slackliner);
+   FallSimulator fallsim(model, cfg.slackliner, node_slackliner, solvertype);
 
    Vec v0(q0.size());
    v0.setZero();
@@ -38,7 +38,7 @@ FallResults Experiments::simulate(const SimConfig& cfg, const DiscreteLine& dlin
 
       LineModel broken_model(with_broken_mainline(dline, break_segments), anchor_left, anchor_right, params);
 
-      FallSimulator fallsim_broken(broken_model, cfg.slackliner, node_slackliner);
+      FallSimulator fallsim_broken(broken_model, cfg.slackliner, node_slackliner, solvertype);
 
       fallresults.backup = fallsim_broken.simulate(t_end, dt_out, as_const_mat2x(q0), as_const_mat2x(v0));
       fallresults.has_backup_fall = true;

@@ -1,13 +1,15 @@
 #include "fall_simulator.h"
 #include "rk45.h"
+#include "rodas4.h"
 #include "progress_bar.h"
 #include <iostream>
 
-FallSimulator::FallSimulator(const LineModel& linemodel, const SlacklinerConfig& slackliner, Eigen::Index node_slackliner)
+FallSimulator::FallSimulator(const LineModel& linemodel, const SlacklinerConfig& slackliner, Eigen::Index node_slackliner, SolverType solvertype)
    : linemodel_(linemodel), 
      freefall_(FreeFall(Params{}.gravity.y(), 0.0, 0.0, 0.0)), 
      slackliner_(slackliner), 
-     node_slackliner_(node_slackliner)
+     node_slackliner_(node_slackliner),
+     solvertype_(solvertype)
 {
 }
 
@@ -33,12 +35,10 @@ SimData FallSimulator::simulate(const double tend, const double dt_out, CRef<Mat
 
   data.node_slackliner = node_slackliner_;
 
-  RKOptions opt;
-  opt.dt_out = dt_out;
-
   ProgressBar bar;
 
   auto rhs    = [&](double t, CRef<Vec> z, Ref<Vec> dz) { linemodel_.rhs(t, z, dz); };
+  auto rhsjac    = [&](double t, CRef<Vec> z, Ref<Vec> dz, Jac jacobian) { linemodel_.rhs(t, z, dz, &jacobian.Kq, &jacobian.Kv); };
   auto output_obs = [&](double t, CRef<Vec> z) { bar.update((t - t0) / (tend - t0)); return on_output(t, z, data, attached); };
   auto step_obs   = [&](double t, CRef<Vec> z) { return on_step(t, z, data); };
   auto events = [&](double t, CRef<Vec> z, Ref<Vec> g) {
@@ -46,17 +46,30 @@ SimData FallSimulator::simulate(const double tend, const double dt_out, CRef<Mat
   };
 
   double t = t0;
+  bool reason_was_event;
 
   // Record the initial state here
   on_output(t, z, data, attached);
 
   while (t < tend) {
-     RKResult r = rk45(rhs, events, 1, output_obs, step_obs, t, tend, z, opt);
-     t = r.t;
+     if (solvertype_ == SolverType::RungeKutta45) {
+        rk45::RKOptions opt;
+        opt.dt_out = dt_out;
+        rk45::RKResult r = rk45::integrate_rk45(rhs, events, 1, output_obs, step_obs, t, tend, z, opt);
+        t = r.t;
+        reason_was_event = r.reason == rk45::StopReason::Event;
+     } else if (solvertype_ == SolverType::Rosenbrock43) {
+        rodas4::Rodas4Options opt;
+        opt.dt_out = dt_out;
+
+        rodas4::Rodas4Result r = rodas4::integrate_rodas4<RodasLineModelLinSys>(rhs, rhsjac, events, 1, output_obs, step_obs, t, tend, z, opt);
+        t = r.t;
+        reason_was_event = r.reason == rodas4::StopReason::Event;
+     }
 
      StateView s = state_view(z);
 
-     if (r.reason != StopReason::Event) break;
+     if (!reason_was_event) break;
      if (!attached) inelastic_collision(t, s.v); else free_slackliner(t, s.q, s.v);
      attached = !attached;
   }

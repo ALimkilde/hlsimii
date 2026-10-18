@@ -11,6 +11,9 @@
 //   - integrate():   the generic loop. Step control, events on the interpolant, output grid
 //                    and observers. Reusable by other steppers (e.g. RODAS4).
 // rk45() is a convenience wrapper that runs integrate() with a DP5 stepper.
+//
+
+namespace rk45 {
 
 struct RKOptions {
    double rtol = 1e-5, atol = 1e-5;
@@ -291,9 +294,11 @@ RKResult integrate(Stepper& stepper, Rhs&& rhs, Events&& events, const int n_eve
 
 // Dormand-Prince 5(4) integration, see integrate()
 template <class Rhs, class Events, class OnOutput, class OnStep>
-RKResult rk45(Rhs&& rhs, Events&& events, const int n_events, OnOutput&& on_output, OnStep&& on_step,
+RKResult integrate_rk45(Rhs&& rhs, Events&& events, const int n_events, OnOutput&& on_output, OnStep&& on_step,
               const double t0, const double tend, Ref<Vec> z, const RKOptions& opt)
 {
    DP5 stepper(z.size());
    return integrate(stepper, rhs, events, n_events, on_output, on_step, t0, tend, z, opt);
 }
+
+} // Namespace rk45

@@ -4,6 +4,8 @@
 #include <limits>
 #include <sstream>
 #include <stdexcept>
+#include <string>
+#include <vector>
 
 #include "config.h"
 #include "config_yaml.h"
@@ -85,18 +87,41 @@ void print_summary(const std::string& label, const SimData& data)
               << "  lowest slackliner    " << data.lowest_point_slackliner << " m\n";
 }
 
+SolverType parse_solver(const std::string& name)
+{
+    if (name == "rk45") return SolverType::RungeKutta45;
+    if (name == "rodas4") return SolverType::Rosenbrock43;
+    throw std::runtime_error("unknown solver '" + name + "', expected rk45 or rodas4");
+}
+
 } // namespace
 
 int main(int argc, char** argv)
 {
-    if (argc < 2 || argc > 3) {
-        std::cerr << "usage: " << argv[0] << " <config.yaml> [webbings.yaml]\n";
+    const std::string usage = std::string("usage: ") + argv[0] + " <config.yaml> [webbings.yaml] [--solver rk45|rodas4]\n";
+
+    // Positional arguments in order, --solver anywhere
+    std::vector<std::string> positional;
+    std::string solver_name = "rk45";
+    for (int i = 1; i < argc; ++i) {
+        const std::string arg = argv[i];
+        if (arg == "--solver") {
+            if (i + 1 == argc) { std::cerr << usage; return 2; }
+            solver_name = argv[++i];
+        } else {
+            positional.push_back(arg);
+        }
+    }
+    if (positional.empty() || positional.size() > 2) {
+        std::cerr << usage;
         return 2;
     }
-    const std::string webbings_path = argc == 3 ? argv[2] : "data/webbings.yaml";
+    const std::string config_path = positional[0];
+    const std::string webbings_path = positional.size() == 2 ? positional[1] : "data/webbings.yaml";
 
     try {
-        SimConfig cfg = parse_config(read_file(argv[1]));
+        const SolverType solvertype = parse_solver(solver_name);
+        SimConfig cfg = parse_config(read_file(config_path));
         const WebbingCatalog webbings = parse_webbings(read_file(webbings_path));
 
         if (!cfg.pull_webbing) {
@@ -115,7 +140,7 @@ int main(int argc, char** argv)
         std::vector<bool> break_segments;
         for (const SegmentConfig& seg : cfg.segments) break_segments.push_back(seg.break_mainline);
 
-        const FallResults results = Experiments::simulate(cfg, dline, cfg.T, dt_out, break_segments);
+        const FallResults results = Experiments::simulate(cfg, dline, cfg.T, dt_out, break_segments, solvertype);
 
         // Must match the anchors used in Experiments::simulate
         const Vec2 anchor_left(0.0, 0.0), anchor_right(cfg.L, 0.0);

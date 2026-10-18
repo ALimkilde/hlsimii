@@ -12,6 +12,12 @@
 
 namespace {
 
+using rodas4::Rodas4;
+using rodas4::Rodas4Options;
+using rodas4::Rodas4Result;
+using rodas4::StopReason;
+using rodas4::integrate;
+
 using DenseRodas4 = Rodas4<RodasDenseLinSys>;
 
 int failures = 0;
@@ -82,7 +88,7 @@ template <class Rhs>
 Rodas4Result integrate_quiet(DenseRodas4& stepper, Rhs& rhs, double t0, double tend, Ref<Vec> z, const Rodas4Options& opt)
 {
     auto keep_going = [](double, CRef<Vec>) { return true; };
-    return integrate(stepper, rhs, no_events, 0, keep_going, keep_going, t0, tend, z, opt);
+    return integrate(stepper, rhs, rhs, no_events, 0, keep_going, keep_going, t0, tend, z, opt);
 }
 
 // Fixed steps through the stepper directly: halving h divides the error by ~2^4
@@ -94,7 +100,7 @@ void test_fixed_step_order()
         stepper.init(0.0, oscillator_start());
         const double h = 2.0 / n;
         for (int i = 0; i < n; ++i) {
-            stepper.try_step(rhs, h, 1e-6, 1e-6);
+            stepper.try_step(rhs, rhs, h, 1e-6, 1e-6);
             stepper.accept();
         }
         return std::abs(stepper.state()[0] - std::cos(2.0));
@@ -231,7 +237,7 @@ void test_interpolate_endpoints()
     Oscillator rhs;
     DenseRodas4 stepper(2);
     stepper.init(0.0, oscillator_start());
-    stepper.try_step(rhs, 0.3, 1e-6, 1e-6);
+    stepper.try_step(rhs, rhs, 0.3, 1e-6, 1e-6);
     stepper.accept();
     const Vec y_start = oscillator_start(), y_end = stepper.state();
 
@@ -250,7 +256,7 @@ void test_interpolate_order()
         Oscillator rhs;
         DenseRodas4 stepper(2);
         stepper.init(0.0, oscillator_start());
-        stepper.try_step(rhs, h, 1e-6, 1e-6);
+        stepper.try_step(rhs, rhs, h, 1e-6, 1e-6);
         stepper.accept();
         Vec out(2);
         double err = 0.0;
@@ -274,12 +280,12 @@ void test_interpolate_after_rejected_step()
     Oscillator rhs;
     DenseRodas4 stepper(2);
     stepper.init(0.0, oscillator_start());
-    stepper.try_step(rhs, 0.3, 1e-6, 1e-6);
+    stepper.try_step(rhs, rhs, 0.3, 1e-6, 1e-6);
     stepper.accept();
 
     Vec before(2), after(2);
     stepper.interpolate(0.17, before);
-    stepper.try_step(rhs, 0.05, 1e-6, 1e-6);   // Trial step with a different h, never accepted
+    stepper.try_step(rhs, rhs, 0.05, 1e-6, 1e-6);   // Trial step with a different h, never accepted
     stepper.interpolate(0.17, after);
     CHECK(before == after);
 }
@@ -304,7 +310,7 @@ std::vector<Call> record_calls(double t0, double tend, const Rodas4Options& opt,
     std::vector<Call> calls;
     auto on_output = [&](double t, CRef<Vec> zt) { calls.push_back({true, t, zt}); return true; };
     auto on_step = [&](double t, CRef<Vec> zt) { calls.push_back({false, t, zt}); return true; };
-    const Rodas4Result r = integrate(stepper, rhs, no_events, 0, on_output, on_step, t0, tend, z, opt);
+    const Rodas4Result r = integrate(stepper, rhs, rhs, no_events, 0, on_output, on_step, t0, tend, z, opt);
     if (result) *result = r;
     return calls;
 }
@@ -405,7 +411,7 @@ void test_output_observer_stops()
     Vec z_seen(2);
     auto on_output = [&](double t, CRef<Vec> zt) { z_seen = zt; return t < 0.5 - 1e-12; };
     auto on_step = [](double, CRef<Vec>) { return true; };
-    const Rodas4Result r = integrate(stepper, rhs, no_events, 0, on_output, on_step, 0.0, 10.0, z, opt);
+    const Rodas4Result r = integrate(stepper, rhs, rhs, no_events, 0, on_output, on_step, 0.0, 10.0, z, opt);
     CHECK(r.reason == StopReason::ObserverStop);
     CHECK(r.t == 5 * 0.1);
     CHECK(z == z_seen);
@@ -423,7 +429,7 @@ void test_step_observer_stops()
     int n_outputs = 0;
     auto on_output = [&](double, CRef<Vec>) { ++n_outputs; return true; };
     auto on_step = [](double, CRef<Vec>) { return false; };
-    const Rodas4Result r = integrate(stepper, rhs, no_events, 0, on_output, on_step, 0.0, 10.0, z, opt);
+    const Rodas4Result r = integrate(stepper, rhs, rhs, no_events, 0, on_output, on_step, 0.0, 10.0, z, opt);
     CHECK(r.reason == StopReason::ObserverStop);
     CHECK(r.t > 0.0);
     CHECK(z == stepper.state());
@@ -445,7 +451,7 @@ std::vector<Call> run_with_events(Events&& events, int n_events, double t0, Vec 
     std::vector<Call> calls;
     auto on_output = [&](double t, CRef<Vec> zt) { calls.push_back({true, t, zt}); return true; };
     auto on_step = [&](double t, CRef<Vec> zt) { calls.push_back({false, t, zt}); return true; };
-    r = integrate(stepper, rhs, events, n_events, on_output, on_step, t0, tend, z_end, opt);
+    r = integrate(stepper, rhs, rhs, events, n_events, on_output, on_step, t0, tend, z_end, opt);
     return calls;
 }
 
