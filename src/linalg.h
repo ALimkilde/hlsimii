@@ -88,10 +88,8 @@ struct Jac {
 class RodasLineModelLinSys {
    public:
       explicit RodasLineModelLinSys(const Eigen::Index n)
-         : n_(n), jac_(Mat::Zero(n,n)), linsys_(n,n), lu_(linsys_), Kq_(n/4), Kv_(n/4) 
+         : n_(n), linsys_(n/2,n/2), lu_(linsys_), Kq_(n/4), Kv_(n/4) 
       {
-         Eigen::Index m = n_ / 2;
-         jac_.topRightCorner(m,m).diagonal().array() = 1.0;
       };
 
       // return reference for jacobian to be overridden
@@ -104,12 +102,10 @@ class RodasLineModelLinSys {
       // Eg. in Rodas; call as factorize(1/(gamma*h))
       void factorize(const double fac) 
       { 
-         // TODO; not very efficient
-         Eigen::Index m = n_ / 2;
-         jac_.bottomLeftCorner(m,m) = Kq_.to_dense();
-         jac_.bottomRightCorner(m,m) = Kv_.to_dense();
+         fac_ = fac;
 
-         linsys_ = - jac_;
+         // TODO; not very efficient
+         linsys_ = - Kv_.to_dense() - Kq_.to_dense()/fac;
          linsys_.diagonal().array() += fac;
 
          lu_.compute(linsys_); // Factorize happens here. Overrides linsys.
@@ -118,7 +114,14 @@ class RodasLineModelLinSys {
       // Ax = b
       void solve(Ref<Vec> x, CRef<Vec> b) const 
       {
-         x = lu_.solve(b);
+         CRef<Vec> bq = b.head(n_/2);
+         CRef<Vec> bv = b.tail(n_/2);
+
+         Ref<Vec> xq = x.head(n_/2);
+         Ref<Vec> xv = x.tail(n_/2);
+
+         xv = lu_.solve(bv + Kq_.to_dense()*bq/fac_);
+         xq = (bq + xv)/fac_;
       }
 
       // Getters
@@ -126,8 +129,10 @@ class RodasLineModelLinSys {
 
    private:
       const Eigen::Index n_;
-      Mat jac_, linsys_;
+      Mat linsys_;
       Eigen::PartialPivLU< Eigen::Ref<Mat> > lu_;
+
+      double fac_;
 
       BlockTriMat Kq_, Kv_;
 };
