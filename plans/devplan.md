@@ -12,7 +12,7 @@
 - [X] Use `Eigen::VectorXd` for the underlying state.
 - [X] Use `Eigen::Map` for zero-copy N × 2 views of positions and velocities.
 
-## 2. Implement Statix Mechanics kernel
+## 2. Implement Static Mechanics kernel
 
 - [X] Implement spring forces/accelerations with explicit loops.
 - [X] Avoid unnecessary temporary allocations.
@@ -95,16 +95,15 @@
 - [X] Initially use:
   - [X] Dense Jacobian
   - [X] Eigen dense LU
-  - [ ] No structural optimization
-- [ ] Compare RODAS4 against RK45 on representative problems.
-- [ ] Verify adaptive timestep behavior and convergence.
+- [X] Compare RODAS4 against RK45 on representative problems.
+- [X] Verify adaptive timestep behavior and convergence.
 
 ## 11. RODAS4 reference implementation
 
-- [ ] Make the dense RODAS4 implementation reliable.
-- [ ] Add regression tests.
-- [ ] Save representative trajectories/results.
-- [ ] Treat this as the reference implementation for later optimization.
+- [X] Make the dense RODAS4 implementation reliable.
+- [X] Add regression tests.
+- [X] Save representative trajectories/results.
+- [X] Treat this as the reference implementation for later optimization.
 - [X] Add event handling:
   - [X] Detect event crossings
   - [X] Locate roots
@@ -113,17 +112,27 @@
 
 ## 12. Structured Jacobian solver
 
-- [ ] Exploit the mechanical Jacobian structure.
-- [ ] Use the state partition `y = (q, v)`.
-- [ ] Eliminate the position variables analytically from the Rosenbrock linear system.
-- [ ] Reduce the system to a 2N × 2N block-tridiagonal system.
-- [ ] Represent the reduced system using 2×2 blocks.
+- [X] Exploit the mechanical Jacobian structure.
+- [X] Use the state partition `y = (q, v)`.
+- [X] Eliminate the position variables analytically from the Rosenbrock linear system.
+- [X] Reduce the system to a 2N × 2N block-tridiagonal system.
+- [X] Represent the reduced system using 2×2 blocks.
 - [ ] Implement block LU/Thomas factorization.
 - [ ] Implement a small, robust 2×2 solve rather than explicitly forming inverses.
 - [ ] Reuse all factorization/workspace memory.
 - [ ] Compare every structured solve against the dense reference solver.
 
-## 13. Performance optimization
+## 13. Make sure IO is correct
+- [ ] Make sure peak forces are calculated within each timestep (not only on output grid)
+- [ ] Make sure the whole table is computed correctly (implemented by me)
+- [ ] Save output to .csv file
+- [ ] Take Drag and KV scaling as input
+- [ ] Take Webbing width as input
+- [ ] Include Shockload values 
+   - [ ] Peak webbing during backup release
+   - [ ] Peak leash during flick up during backup release
+
+## 14. Performance optimization
 
 - [ ] Profile before optimizing further.
 - [ ] Measure separately:
@@ -138,7 +147,7 @@
 - [ ] Benchmark alternative small-matrix implementations.
 - [ ] Keep automated correctness tests alongside performance tests.
 
-## 14. WASM
+## 15. WASM
 
 - [ ] Compile the existing correct implementation to WASM.
 - [ ] Keep the entire integration run inside WASM where possible.
@@ -148,7 +157,7 @@
 - [ ] Investigate WASM SIMD only if profiling justifies it.
 - [ ] Verify numerical results against the native/reference implementation.
 
-## 15. Website integration
+## 16. Website integration
 
 - [ ] Define a small, stable WASM API.
 - [ ] Keep physics/integration state inside WASM.
@@ -156,7 +165,7 @@
 - [ ] Add visualization separately from the numerical core.
 - [ ] Add performance regression tests for representative simulations.
 
-## 16. Energy calculation
+## 17. Energy calculation
 
 - [ ] Make 'static' energy solver for lower point of fall (assume f = 0 for all other nodes, fx = 0 for slackliner node, and Ep_old + Ee_old = Ep_new + Ee_new)
 - [ ] Test the solver
