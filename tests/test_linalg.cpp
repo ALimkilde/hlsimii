@@ -1,8 +1,10 @@
 // Tests for BlockTriMat: construction, block accessors, to_dense, setZero, the dense LU solve, row scaling
-// and the matrix-vector product.
+// and the matrix-vector product. Also tests the block Thomas solver BlockTriLU against the dense solve.
 // Uses a CHECK macro instead of assert so the tests also run in Release builds.
 
+#include <cstdlib>
 #include <iostream>
+#include <limits>
 
 #include "linalg.h"
 
@@ -202,6 +204,94 @@ void test_multiply_vector()
     CHECK(A * z.segment(1, 6) == M * x);
 }
 
+// Random block tridiagonal matrix whose diagonal blocks dominate their rows,
+// so it is invertible and block Thomas (which only pivots inside a block) is stable.
+BlockTriMat random_matrix(int num_blocks)
+{
+    BlockTriMat A(num_blocks);
+    for (int b = 0; b < num_blocks; b++) {
+        A.diag(b) = Mat2::Random() + 10.0 * Mat2::Identity();
+        if (b < num_blocks - 1) {
+            A.upper(b) = Mat2::Random();
+            A.lower(b) = Mat2::Random();
+        }
+    }
+    return A;
+}
+
+// Factorizes A with BlockTriLU and checks that solve recovers a manufactured solution.
+// x starts out as NaN, so any block the solver forgets to write makes the check fail.
+void check_lu_solve(const BlockTriMat& A)
+{
+    const int n = A.n();
+    const Vec x_true = Vec::LinSpaced(n, -1.0, 2.0);
+    const Vec b = A.to_dense() * x_true;
+
+    BlockTriLU lu(A.num_blocks());
+    lu.compute(A);
+
+    Vec x = Vec::Constant(n, std::numeric_limits<double>::quiet_NaN());
+    lu.solve(x, b);
+    CHECK((x - x_true).norm() <= 1e-12 * x_true.norm());
+    CHECK((A * x - b).norm() <= 1e-12 * b.norm());
+
+    // Same answer as the dense reference solve
+    Vec x_dense(n);
+    A.solve(x_dense, b);
+    CHECK((x - x_dense).norm() <= 1e-12 * x_true.norm());
+}
+
+void test_lu_solve()
+{
+    // Hand-built matrix with distinct, non-symmetric blocks
+    check_lu_solve(three_block_matrix());
+
+    // Edge cases: one block (no off-diagonals) and two blocks (one of each)
+    std::srand(1);
+    check_lu_solve(random_matrix(1));
+    check_lu_solve(random_matrix(2));
+
+    // A longer chain, closer to a real line mesh
+    check_lu_solve(random_matrix(50));
+}
+
+void test_lu_solve_views_and_reuse()
+{
+    std::srand(2);
+    const BlockTriMat A = random_matrix(5);
+    const Mat M = A.to_dense();
+    const Vec x_true = Vec::LinSpaced(10, 3.0, -1.0);
+    const Vec b = M * x_true;
+
+    BlockTriLU lu(5);
+    lu.compute(A);
+
+    // The right-hand side may be an expression, and x may be a view into a larger vector
+    Vec y = Vec::Zero(12);
+    lu.solve(y.segment(1, 10), -b);
+    CHECK((y.segment(1, 10) + x_true).norm() <= 1e-12 * x_true.norm());
+    CHECK(y(0) == 0.0 && y(11) == 0.0);
+
+    // In-place solve: x and b are the same vector
+    Vec v = b;
+    lu.solve(v, v);
+    CHECK((v - x_true).norm() <= 1e-12 * x_true.norm());
+
+    // Repeated solves with the same factorization give the same answer
+    Vec x1(10), x2(10);
+    lu.solve(x1, b);
+    lu.solve(x2, b);
+    CHECK(x1 == x2);
+
+    // Refactorizing the same object with a different matrix uses only the new matrix
+    const BlockTriMat B = random_matrix(5);
+    const Vec c = B.to_dense() * x_true;
+    lu.compute(B);
+    Vec x3(10);
+    lu.solve(x3, c);
+    CHECK((x3 - x_true).norm() <= 1e-12 * x_true.norm());
+}
+
 } // namespace
 
 int main()
@@ -213,6 +303,8 @@ int main()
     test_solve();
     test_multiply_rowwise();
     test_multiply_vector();
+    test_lu_solve();
+    test_lu_solve_views_and_reuse();
 
     if (failures > 0) {
         std::cerr << failures << " check(s) failed\n";
