@@ -58,6 +58,25 @@ void BlockTriMat::multiply_rowwise(CRef<Vec> fac) {
 
 }
 
+Vec BlockTriMat::operator*(CRef<Vec> x) const
+{
+   Vec out = Vec::Zero(x.size());
+
+   for(Eigen::Index b = 0; b < num_blocks(); b++) {
+      const Eigen::Index u = b;
+      const Eigen::Index l = b-1;
+      const bool u_exist = u < num_blocks() - 1;
+      const bool l_exist = l >= 0;
+
+      out.segment<2>(2*b) += diag(b)*x.segment<2>(2*b);
+
+      if (u_exist) out.segment<2>(2*b) += upper(u)*x.segment<2>(2*(b+1));
+      if (l_exist) out.segment<2>(2*b) += lower(l)*x.segment<2>(2*(b-1));
+   }
+   
+   return out;
+}
+
 static void rodasReducedSystem(const BlockTriMat& Kq, const BlockTriMat& Kv, const double fac, BlockTriMat& out) 
 {
    for(Eigen::Index b = 0; b < out.num_blocks(); b++) {
@@ -92,6 +111,6 @@ void RodasLineModelLinSys::solve(Ref<Vec> x, CRef<Vec> b) const
    Ref<Vec> xq = x.head(n_/2);
    Ref<Vec> xv = x.tail(n_/2);
 
-   xv = lu_.solve(bv + Kq_.to_dense()*bq/fac_);
+   xv = lu_.solve(bv + Kq_*bq/fac_);
    xq = (bq + xv)/fac_;
 }

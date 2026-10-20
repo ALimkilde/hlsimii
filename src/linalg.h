@@ -63,6 +63,8 @@ class BlockTriMat {
 
       void multiply_rowwise(CRef<Vec> fac);
 
+      Vec operator*(CRef<Vec> x) const;
+
       int n() const { return num_blocks_ * 2; }
       int num_blocks() const { return num_blocks_; }
    private: 

@@ -1,4 +1,5 @@
-// Tests for BlockTriMat: construction, block accessors, to_dense, setZero, the dense LU solve and row scaling.
+// Tests for BlockTriMat: construction, block accessors, to_dense, setZero, the dense LU solve, row scaling
+// and the matrix-vector product.
 // Uses a CHECK macro instead of assert so the tests also run in Release builds.
 
 #include <iostream>
@@ -159,6 +160,48 @@ void test_multiply_rowwise()
     CHECK(C.to_dense() == f_rows.asDiagonal() * M);
 }
 
+// A * x must equal the dense product: block row b is
+// diag(b) x_b + upper(b) x_{b+1} + lower(b-1) x_{b-1}.
+// The entries are small integers, so the products are exact and == can be used.
+void test_multiply_vector()
+{
+    const BlockTriMat A = three_block_matrix();
+    const Mat M = A.to_dense();
+
+    Vec x(6);
+    x << 1, -2, 3, -4, 5, -6;
+    const Vec y = A * x;
+    CHECK(y.size() == 6);
+    CHECK(y == M * x);
+
+    // Hand-computed middle row, which uses all three blocks:
+    // lower(0) row 0 . x_0 + diag(1) row 0 . x_1 + upper(1) row 0 . x_2
+    // = (31 - 64) + (330 - 8) + (25 - 36) = 278
+    CHECK(y(2) == 278.0);
+
+    // A single block has only a diagonal block, so no off-diagonal term may be read
+    BlockTriMat B(1);
+    B.diag(0) = mat2(1, 2, 3, 4);
+    Vec x1(2);
+    x1 << 5, -1;
+    CHECK(B * x1 == mat2(1, 2, 3, 4) * x1);
+
+    // Two blocks: each block row has exactly one off-diagonal neighbour
+    BlockTriMat C(2);
+    C.diag(0) = mat2(1, 2, 3, 4);
+    C.diag(1) = mat2(5, 6, 7, 8);
+    C.upper(0) = mat2(9, 10, 11, 12);
+    C.lower(0) = mat2(13, 14, 15, 16);
+    Vec x2(4);
+    x2 << 1, 2, -3, 4;
+    CHECK(C * x2 == C.to_dense() * x2);
+
+    // x may be a view into a larger vector
+    Vec z = Vec::Zero(8);
+    z.segment(1, 6) = x;
+    CHECK(A * z.segment(1, 6) == M * x);
+}
+
 } // namespace
 
 int main()
@@ -169,6 +212,7 @@ int main()
     test_set_zero();
     test_solve();
     test_multiply_rowwise();
+    test_multiply_vector();
 
     if (failures > 0) {
         std::cerr << failures << " check(s) failed\n";
