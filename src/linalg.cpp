@@ -79,9 +79,8 @@ Vec BlockTriMat::operator*(CRef<Vec> x) const
 
 void BlockTriLU::compute(const BlockTriMat& A)
 {
-   D[0] = A.diag(0);
-   lu_[0].compute(D[0]);
-   if (1 < num_blocks_) U[0] = lu_[0].solve(A.upper(0));
+   D[0] = A.diag(0).inverse();
+   if (1 < num_blocks_) U[0] = D[0]*A.upper(0);
 
    for (int b = 1; b < num_blocks_; b++) {
       const Eigen::Index u = b;
@@ -89,21 +88,20 @@ void BlockTriLU::compute(const BlockTriMat& A)
       const bool u_exist = u < num_blocks_ - 1;
 
       L[l] = A.lower(l); // Save the lower part of A
-      D[b] = A.diag(b) - L[l]*U[b-1];
-      lu_[b].compute(D[b]);
-      if (u_exist) U[b] = lu_[b].solve(A.upper(b));
+      D[b] = (A.diag(b) - L[l]*U[b-1]).inverse();
+      if (u_exist) U[b] = D[b]*A.upper(b);
    }
 }
 
 void BlockTriLU::solve(Ref<Vec> x, CRef<Vec> b) const
 {
    // Forward pass
-   d[0] = lu_[0].solve(b.segment<2>(0));
+   d[0] = D[0]*b.segment<2>(0);
 
    for (int i = 1; i < num_blocks_; i++) {
       const Eigen::Index l = i-1;
 
-      d[i] = lu_[i].solve(b.segment<2>(2*i) - L[l]*d[i-1]); 
+      d[i] = D[i]*(b.segment<2>(2*i) - L[l]*d[i-1]); 
    }
 
    // Back substitution

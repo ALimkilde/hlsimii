@@ -77,15 +77,14 @@ class BlockTriMat {
 
 class BlockTriLU {
    public:
-      explicit BlockTriLU(const int num_blocks) : num_blocks_(num_blocks), D(num_blocks), U(num_blocks-1), L(num_blocks-1), lu_(num_blocks), d(num_blocks) {};
+      explicit BlockTriLU(const int num_blocks) : num_blocks_(num_blocks), D(num_blocks), U(num_blocks-1), L(num_blocks-1), d(num_blocks) {};
 
       void compute(const BlockTriMat& A);
 
       void solve(Ref<Vec> x, CRef<Vec> b) const;
    private:
       int num_blocks_;
-      std::vector<Mat2> D, U, L;
-      std::vector<Eigen::PartialPivLU<Mat2>> lu_;
+      std::vector<Mat2> D, U, L; // D holds inverse matrices after factorization
       mutable std::vector<Vec2> d;
       
 };
