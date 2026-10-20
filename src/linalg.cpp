@@ -57,3 +57,41 @@ void BlockTriMat::multiply_rowwise(CRef<Vec> fac) {
    }
 
 }
+
+static void rodasReducedSystem(const BlockTriMat& Kq, const BlockTriMat& Kv, const double fac, BlockTriMat& out) 
+{
+   for(Eigen::Index b = 0; b < out.num_blocks(); b++) {
+      const Eigen::Index u = b;
+      const Eigen::Index l = b-1;
+      const bool u_exist = u < out.num_blocks() - 1;
+      const bool l_exist = l >= 0;
+
+      out.diag(b) = -Kv.diag(b) - Kq.diag(b)/fac;
+      out.diag(b).diagonal().array() += fac;
+
+      if (u_exist) out.upper(u) = -Kv.upper(u) - Kq.upper(u)/fac;
+      if (l_exist) out.lower(l) = -Kv.lower(l) - Kq.lower(l)/fac;
+   }
+};
+
+void RodasLineModelLinSys::factorize(const double fac)
+{ 
+   fac_ = fac;
+
+   rodasReducedSystem(Kq_, Kv_, fac, reduced_system_);
+   linsys_.noalias() = reduced_system_.to_dense();
+
+   lu_.compute(linsys_); // Factorize happens here. Overrides linsys.
+};
+
+void RodasLineModelLinSys::solve(Ref<Vec> x, CRef<Vec> b) const 
+{
+   CRef<Vec> bq = b.head(n_/2);
+   CRef<Vec> bv = b.tail(n_/2);
+
+   Ref<Vec> xq = x.head(n_/2);
+   Ref<Vec> xv = x.tail(n_/2);
+
+   xv = lu_.solve(bv + Kq_.to_dense()*bq/fac_);
+   xq = (bq + xv)/fac_;
+}

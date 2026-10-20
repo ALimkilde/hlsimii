@@ -78,6 +78,7 @@ struct Jac {
    BlockTriMat& Kv;
 };
 
+
 // Implements the linear system of Rosenbrock type ODE solvers for a highline simulation
 //     A x = (I/(gamma * h) - J) x = b
 // It considers the special case where x = [q | v] is the reduction 
@@ -88,7 +89,7 @@ struct Jac {
 class RodasLineModelLinSys {
    public:
       explicit RodasLineModelLinSys(const Eigen::Index n)
-         : n_(n), linsys_(n/2,n/2), lu_(linsys_), Kq_(n/4), Kv_(n/4) 
+         : n_(n), linsys_(n/2,n/2), lu_(linsys_), Kq_(n/4), Kv_(n/4), reduced_system_(n/4)
       {
       };
 
@@ -100,29 +101,10 @@ class RodasLineModelLinSys {
       // Factorizes
       // (I * fac - J)
       // Eg. in Rodas; call as factorize(1/(gamma*h))
-      void factorize(const double fac) 
-      { 
-         fac_ = fac;
-
-         // TODO; not very efficient
-         linsys_ = - Kv_.to_dense() - Kq_.to_dense()/fac;
-         linsys_.diagonal().array() += fac;
-
-         lu_.compute(linsys_); // Factorize happens here. Overrides linsys.
-      };
+      void factorize(const double fac);
 
       // Ax = b
-      void solve(Ref<Vec> x, CRef<Vec> b) const 
-      {
-         CRef<Vec> bq = b.head(n_/2);
-         CRef<Vec> bv = b.tail(n_/2);
-
-         Ref<Vec> xq = x.head(n_/2);
-         Ref<Vec> xv = x.tail(n_/2);
-
-         xv = lu_.solve(bv + Kq_.to_dense()*bq/fac_);
-         xq = (bq + xv)/fac_;
-      }
+      void solve(Ref<Vec> x, CRef<Vec> b) const ;
 
       // Getters
       Eigen::Index size() const { return n_; }
@@ -134,5 +116,7 @@ class RodasLineModelLinSys {
 
       double fac_;
 
-      BlockTriMat Kq_, Kv_;
+      BlockTriMat Kq_, Kv_, reduced_system_;
 };
+
+
