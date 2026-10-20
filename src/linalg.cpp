@@ -136,9 +136,8 @@ void RodasLineModelLinSys::factorize(const double fac)
    fac_ = fac;
 
    rodasReducedSystem(Kq_, Kv_, fac, reduced_system_);
-   linsys_.noalias() = reduced_system_.to_dense();
 
-   lu_.compute(linsys_); // Factorize happens here. Overrides linsys.
+   reduced_lu_.compute(reduced_system_); // Factorize happens here. Overrides linsys.
 };
 
 void RodasLineModelLinSys::solve(Ref<Vec> x, CRef<Vec> b) const 
@@ -149,6 +148,6 @@ void RodasLineModelLinSys::solve(Ref<Vec> x, CRef<Vec> b) const
    Ref<Vec> xq = x.head(n_/2);
    Ref<Vec> xv = x.tail(n_/2);
 
-   xv = lu_.solve(bv + Kq_*bq/fac_);
+   reduced_lu_.solve(xv, bv + Kq_*bq/fac_);
    xq = (bq + xv)/fac_;
 }

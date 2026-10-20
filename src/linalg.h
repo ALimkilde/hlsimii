@@ -107,7 +107,7 @@ struct Jac {
 class RodasLineModelLinSys {
    public:
       explicit RodasLineModelLinSys(const Eigen::Index n)
-         : n_(n), linsys_(n/2,n/2), lu_(linsys_), Kq_(n/4), Kv_(n/4), reduced_system_(n/4)
+         : n_(n), Kq_(n/4), Kv_(n/4), reduced_system_(n/4), reduced_lu_(n/4)
       {
       };
 
@@ -129,12 +129,10 @@ class RodasLineModelLinSys {
 
    private:
       const Eigen::Index n_;
-      Mat linsys_;
-      Eigen::PartialPivLU< Eigen::Ref<Mat> > lu_;
-
       double fac_;
 
       BlockTriMat Kq_, Kv_, reduced_system_;
+      BlockTriLU reduced_lu_;
 };
 
 
