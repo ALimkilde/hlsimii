@@ -117,10 +117,10 @@
 - [X] Eliminate the position variables analytically from the Rosenbrock linear system.
 - [X] Reduce the system to a 2N × 2N block-tridiagonal system.
 - [X] Represent the reduced system using 2×2 blocks.
-- [ ] Implement block LU/Thomas factorization.
-- [ ] Implement a small, robust 2×2 solve rather than explicitly forming inverses.
-- [ ] Reuse all factorization/workspace memory.
-- [ ] Compare every structured solve against the dense reference solver.
+- [X] Implement block LU/Thomas factorization.
+- [X] Implement a small, robust 2×2 solve rather than explicitly forming inverses.
+- [X] Reuse all factorization/workspace memory.
+- [X] Compare every structured solve against the dense reference solver.
 
 ## 13. Make sure IO is correct
 - [ ] Make sure peak forces are calculated within each timestep (not only on output grid)
@@ -134,18 +134,25 @@
 
 ## 14. Performance optimization
 
-- [ ] Profile before optimizing further.
-- [ ] Measure separately:
-  - [ ] Mechanics/RHS evaluation
-  - [ ] Jacobian construction
-  - [ ] Factorization
-  - [ ] Linear solves
-  - [ ] Event handling
-  - [ ] Total integration
-- [ ] Eliminate allocations from hot loops.
-- [ ] Reuse all temporary vectors and matrices.
-- [ ] Benchmark alternative small-matrix implementations.
-- [ ] Keep automated correctness tests alongside performance tests.
+- [X] Profile before optimizing further.
+- [X] Measure separately:
+  - [X] Mechanics/RHS evaluation
+  - [X] Jacobian construction
+  - [X] Factorization
+  - [X] Linear solves
+  - [X] Event handling
+  - [X] Total integration
+- [-] Eliminate allocations from hot loops.
+- [-] Reuse all temporary vectors and matrices.
+- [X] Benchmark alternative small-matrix implementations.
+- [X] Keep automated correctness tests alongside performance tests.
+- [ ] Profile for really large N and different lines
+
+## Found optimization
+- [ ] Assemble; reuse sqrt and unit vector and 1/len
+- [ ] Precompute; vlen?
+- [ ] Avoid rhsjac on rejected steps
+- [ ] Make event leash only compute two forces
 
 ## 15. WASM
 

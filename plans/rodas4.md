@@ -17,12 +17,12 @@
 ## Optimizations
 
 - [ ] Make sure that jacobian is not regenerated after rejected steps
-- [ ] Avoid unecessary rhs calls
-- [ ] Avoid unecessary memory (ynew? embedded?)
-- [ ] Avoid unecessary heap memory (stages to tmp_rhs)
-- [ ] Exploit structures of Jacobian
+- [ ] Avoid unecessary rhs calls - in leash event loose code!
+- [-] Avoid unecessary memory (ynew? embedded?)
+- [-] Avoid unecessary heap memory (stages to tmp_rhs) - Not a big issue
+- [X] Exploit structures of Jacobian
    - [X] Exploit structures q | v structure => 5x speedup
-   - [ ] Make subtracting (-operator) for BlockTriMat
-   - [ ] Make MV product for BlockTriMat
-   - [ ] Make add to diagonal method
-- [ ] Try the predictive stepsize constoller from Gustafson (see fortran code)
+   - [X] Make subtracting (-operator) for BlockTriMat
+   - [X] Make MV product for BlockTriMat
+   - [X] Make add to diagonal method
+- [-] Try the predictive stepsize constoller from Gustafson (see fortran code) (not worth it according to Claude; they say all rejected steps are instability from non smooth jacobian).
