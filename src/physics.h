@@ -42,6 +42,23 @@ struct Params {
    // Drag and dampening parameters
 };
 
+// Shared data between local assembly (edge_force, edge_drag)
+struct EdgeGeometry {
+   double len;
+   double leninv; // 1/len
+   Vec2 u;
+   Mat2 uuT;
+   Mat2 IuuT; // I - uuT
+
+   explicit EdgeGeometry(const Vec2& dq) : 
+      len(dq.norm()), 
+      leninv(1/len),
+      u(dq*leninv),
+      uuT(u*u.transpose()), //TODO; avoid computation if Kq, Kv not existing
+      IuuT(Mat2::Identity() - uuT)
+   {}
+};
+
 class LineModel {
   public:
       explicit LineModel(const DiscreteLine& line, 
@@ -69,6 +86,7 @@ class LineModel {
 
       // === Edge forces === //
       Vec2 edge_vector(CRef<Mat2X> q, Eigen::Index e) const;
+      Vec2 edge_force(Eigen::Index e, const EdgeGeometry& geom, const Vec2& dv, Mat2* Kq = nullptr, Mat2* Kv = nullptr) const; 
       Vec2 edge_force(Eigen::Index e, const Vec2& dq, const Vec2& dv, Mat2* Kq = nullptr, Mat2* Kv = nullptr) const; 
 
       // === KV dampening === //
@@ -76,6 +94,7 @@ class LineModel {
       Vec2 vel_vector(CRef<Mat2X> v, Eigen::Index e) const; 
 
       // === drag === //
+      Vec2 edge_drag(Eigen::Index e, const EdgeGeometry& geom, const Vec2& v, Mat2* Kq = nullptr, Mat2* Kv = nullptr) const;
       Vec2 edge_drag(Eigen::Index e, const Vec2& dq, const Vec2& v, Mat2* Kq = nullptr, Mat2* Kv = nullptr) const;
 
       void assemble(CRef<Mat2X> q, CRef<Mat2X> v, Ref<Mat2X> F, BlockTriMat* Kq = nullptr, BlockTriMat* Kv = nullptr) const; // Compute net forces in F and Jac in K

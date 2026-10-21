@@ -69,16 +69,21 @@ Vec2 LineModel::vel_vector(CRef<Mat2X> v, Eigen::Index e) const {
    return vb - va;
 }
 
-  Vec2 LineModel::edge_force(Eigen::Index e, const Vec2& dq, const Vec2& dv, Mat2* Kq, Mat2* Kv) const
+Vec2 LineModel::edge_force(Eigen::Index e, const Vec2& dq, const Vec2& dv, Mat2* Kq, Mat2* Kv) const
 {
-   const double len = dq.norm();
+   return edge_force(e, EdgeGeometry(dq), dv, Kq, Kv);
+}
+
+Vec2 LineModel::edge_force(Eigen::Index e, const EdgeGeometry& geom, const Vec2& dv, Mat2* Kq, Mat2* Kv) const
+{
+   const double len = geom.len;
+   const double leninv = geom.leninv;
    const double s_main = len - line_.l_main[e];
    const double s_backup = len - line_.l_backup[e];
  
    double T = 0.0, dT = 0.0;   // tension, and dT/dlen
    double c_KV = 0.0;          // Kelvin Voight Dampening constant
                                //
-   // TODO; optimization idea; this check doesn't require square root of dq.norm() unless true
    if (s_main > 0.0)   { 
       T += line_.k_main[e] * s_main;   
       dT += line_.k_main[e]; 
@@ -97,7 +102,7 @@ Vec2 LineModel::vel_vector(CRef<Mat2X> v, Eigen::Index e) const {
       return Vec2::Zero();
    } 
  
-   const Vec2 u = dq / len; // Unit vector
+   const Vec2& u = geom.u;
 
    // Kelvin Voight Dampening
    double feKV = c_KV * dv.dot(u);
@@ -113,15 +118,14 @@ Vec2 LineModel::vel_vector(CRef<Mat2X> v, Eigen::Index e) const {
          if (Kv) Kv->setZero();
       }
 
-      Mat2 uuT;
-      if (Kq || Kv) uuT = u * u.transpose(); // Both derivatives use this
+      const Mat2& uuT = geom.uuT;
 
       if (Kq) {
-         Mat2 IuuT = (Mat2::Identity() - uuT);
-         *Kq = T/len * IuuT + dT * uuT;
+         const Mat2& IuuT = geom.IuuT;
+         *Kq = T*leninv * IuuT + dT * uuT;
          if (feKV < 0) {
-            *Kq += 1/len * c_KV * u * dv.transpose() * IuuT; 
-            *Kq += 1/len * feKV * IuuT;
+            *Kq += leninv * c_KV * u * dv.transpose() * IuuT; 
+            *Kq += leninv * feKV * IuuT;
 
          }
       }
@@ -134,10 +138,13 @@ Vec2 LineModel::vel_vector(CRef<Mat2X> v, Eigen::Index e) const {
    return (T + feKV) * u;
 }
 
-// TODO; optimization possible; let this method reuse u, len, uuT, I-uuT.
 Vec2 LineModel::edge_drag(Eigen::Index e, const Vec2& dq, const Vec2& v, Mat2* Kq, Mat2* Kv) const {
-   const double len = dq.norm();
-   const Vec2 u = dq / len; // Unit vector
+   return edge_drag(e, EdgeGeometry(dq), v, Kq, Kv);
+}
+
+Vec2 LineModel::edge_drag(Eigen::Index e, const EdgeGeometry& geom, const Vec2& v, Mat2* Kq, Mat2* Kv) const {
+   const double leninv = geom.leninv;
+   const Vec2& u = geom.u;
    const Vec2 vtilde = v - v.dot(u)*u; // Orthogonal part of v
 
    const double vnorm2 = vtilde.squaredNorm();
@@ -152,17 +159,15 @@ Vec2 LineModel::edge_drag(Eigen::Index e, const Vec2& dq, const Vec2& v, Mat2* K
    const double vlen = std::sqrt(vnorm2);
    Vec2 drag = - c * vtilde * vlen;
 
-   Mat2 uuT, IuuT, I, ddrag_dvtilde;
+   Mat2 ddrag_dvtilde;
+   const Mat2 I = Mat2::Identity();
+   const Mat2& IuuT = geom.IuuT;
    if (Kq || Kv) {
-      uuT = u * u.transpose(); // Both derivatives use this
-      I = Mat2::Identity();
-      IuuT = (I - uuT);
-
       ddrag_dvtilde = c * (-I*vlen - vtilde*vtilde.transpose()/vlen);
    }
 
    if (Kq) {
-      Mat2 dvtilde_dq = (-u*v.transpose() - v.dot(u)*I)*IuuT/len;
+      Mat2 dvtilde_dq = (-u*v.transpose() - v.dot(u)*I)*IuuT*leninv;
       *Kq = ddrag_dvtilde * dvtilde_dq;
    }
 
@@ -210,10 +215,12 @@ void LineModel::assemble(CRef<Mat2X> q, CRef<Mat2X> v, Ref<Mat2X> F, BlockTriMat
       const bool b_free = (b < num_nodes);   // is b a free node
 
       const Vec2 dq = edge_vector(q, e);
-      const Vec2 f = edge_force(e, dq, vel_vector(v, e), edge_Kqptr, edge_Kvptr);
+
+      const EdgeGeometry geom(dq);
+      const Vec2 f = edge_force(e, geom, vel_vector(v, e), edge_Kqptr, edge_Kvptr);
 
       if (a_free) {
-         F.col(a) += f + 0.5 * edge_drag(e, dq, v.col(a), drag_Kqptr, drag_Kvptr);
+         F.col(a) += f + 0.5 * edge_drag(e, geom, v.col(a), drag_Kqptr, drag_Kvptr);
          if (Kv) Kv->diag(a) += 0.5 * drag_Kv;
          if (Kq) {
             Kq->diag(a) -= 0.5 * drag_Kq;
@@ -223,7 +230,7 @@ void LineModel::assemble(CRef<Mat2X> q, CRef<Mat2X> v, Ref<Mat2X> F, BlockTriMat
          }
       }
       if (b_free) {
-         F.col(b) += 0.5 * edge_drag(e, dq, v.col(b), drag_Kqptr, drag_Kvptr) - f;
+         F.col(b) += 0.5 * edge_drag(e, geom, v.col(b), drag_Kqptr, drag_Kvptr) - f;
          if (Kv) Kv->diag(b) += 0.5 * drag_Kv;
 
          if (Kq) {
