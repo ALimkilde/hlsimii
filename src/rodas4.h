@@ -56,7 +56,7 @@ template <class LinSys>
 class Rodas4 {
    public:
       explicit Rodas4(const Eigen::Index n)
-         : yprev_(n), y_(n), ynew_(n), tmp_rhs_(n), embedded_(n),
+         : yprev_(n), y_(n), ynew_(n), dy_(n), tmp_rhs_(n), embedded_(n),
            yinterp1_(n), yinterp2_(n),
            linsys_(n),
            u1_(n), u2_(n), u3_(n), u4_(n), u5_(n), u6_(n) {}
@@ -67,6 +67,7 @@ class Rodas4 {
          yprev_ = z0;
          y_ = z0;
          ynew_ = z0;
+         jac_is_current_ = false;
       }
 
       // Autonomous RHS only!
@@ -74,17 +75,17 @@ class Rodas4 {
       double try_step(Rhs& rhs, RhsJac& rhsjac, const double h, const double rtol, const double atol) {
          h_ = h;
 
-         // ----------------------------------------------------------------
-         // TODO; find a way to skip this for rejected steps
-         // ----------------------------------------------------------------
-         rhsjac(t_, y_, tmp_rhs_, linsys_.jacobian()); // Fill jac into linsys
+         if (!jac_is_current_) {
+            rhsjac(t_, y_, dy_, linsys_.jacobian()); // Fill jac into linsys
+            jac_is_current_ = true;
+         }
 
-         // Factorize
+         // Factorize - must not modify jacobian!
          linsys_.factorize(1.0/(gamma * h));
          // ----------------------------------------------------------------
 
          // Stages
-         linsys_.solve(u1_, tmp_rhs_);
+         linsys_.solve(u1_, dy_);
 
          ynew_ = y_ + a21*u1_;
          rhs(t_ + c2*h, ynew_, tmp_rhs_);
@@ -126,6 +127,8 @@ class Rodas4 {
 
          tprev_ = t_;
          t_ += h_;
+
+         jac_is_current_ = false;
       }
 
       void interpolate(const double t, Ref<Vec> out) const {
@@ -149,12 +152,15 @@ class Rodas4 {
       double t() const { return t_; }
       double tprev() const { return tprev_; }
       Vec state() const { return y_; } 
+      bool jac_is_current() const { return jac_is_current_; }
 
   private:
       double t_ = 0.0, tprev_ = 0.0, h_ = 0.0;
-      Vec yprev_, y_, ynew_, tmp_rhs_, embedded_; // TODO; get rid of ynew? and more?
+      Vec yprev_, y_, ynew_, dy_, tmp_rhs_, embedded_; // TODO; get rid of ynew? and more?
       Vec yinterp1_, yinterp2_;
       LinSys linsys_;
+
+      bool jac_is_current_ = false;
 
       // stages
       Vec u1_, u2_, u3_, u4_, u5_, u6_;
@@ -277,13 +283,13 @@ Rodas4Result integrate(Stepper& stepper, Rhs&& rhs, RhsJac rhsjac, Events&& even
 
    stepper.init(t0, z);
 
-   bool after_reject = false; // Keeps track of whether last step was rejected or not
-
    double h = std::min({opt.h0, opt.hmax, tend - t0}); // step size
 
    // To store z after stopped event
    double t_stop;
    Vec z_stop(z.size()); 
+   
+   bool after_reject = false;
 
    // Event handling
    int event = -1; // -1 means no event happened
@@ -326,13 +332,15 @@ Rodas4Result integrate(Stepper& stepper, Rhs&& rhs, RhsJac rhsjac, Events&& even
       const double err = stepper.try_step(rhs, rhsjac, h, opt.rtol, opt.atol);
       if (!(err <= 1.0)) {   // Also rejects NaN
          h = newStepSize(h, err, after_reject); 
-         after_reject = true; n_rejects++; 
+         after_reject = true;
+         n_rejects++; 
          continue;
       }
       
       const double h_next = newStepSize(h, err, after_reject); 
       stepper.accept();
-      after_reject = false; n_accepts++;
+      after_reject = false;
+      n_accepts++;
 
       // Event handling
       events(stepper.t(), stepper.state(), g);
