@@ -148,7 +148,6 @@ Vec2 LineModel::edge_drag(Eigen::Index e, const Vec2& dq, const Vec2& v, Mat2* K
 }
 
 Vec2 LineModel::edge_drag(Eigen::Index e, const EdgeGeometry& geom, const Vec2& v, Mat2* Kq, Mat2* Kv) const {
-   const double leninv = geom.leninv;
    const Vec2& u = geom.u;
    const Vec2& n = geom.n;
 
@@ -165,21 +164,12 @@ Vec2 LineModel::edge_drag(Eigen::Index e, const EdgeGeometry& geom, const Vec2& 
 
    Vec2 drag = - c * s * vlen * n;
 
-   const Vec2 vtilde = s*n; // Orthogonal part of v
-   Mat2 ddrag_dvtilde;
-   const Mat2 I = Mat2::Identity();
-   const Mat2& IuuT = geom.IuuT;
-   if (Kq || Kv) {
-      ddrag_dvtilde = c * (-I*vlen - vtilde*vtilde.transpose()/vlen);
-   }
-
    if (Kq) {
-      Mat2 dvtilde_dq = (-u*v.transpose() - v.dot(u)*I)*IuuT*leninv;
-      *Kq = ddrag_dvtilde * dvtilde_dq;
+      *Kq = (c * vlen * geom.leninv) * (s * u + 2.0 * v.dot(u) * n) * n.transpose();
    }
 
    if (Kv) {
-      *Kv = ddrag_dvtilde * IuuT;
+      *Kv = (-2.0 * c * vlen) * geom.IuuT;
    }
 
    return drag;

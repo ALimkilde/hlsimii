@@ -60,7 +60,7 @@ struct EdgeGeometry {
    {
       if (with_matricies) {
          uuT = u*u.transpose();
-         IuuT = n*n.transpose();
+         IuuT = Mat2::Identity() - uuT;
       }
    }
 };
