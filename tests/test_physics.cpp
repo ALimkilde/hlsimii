@@ -868,7 +868,8 @@ void test_rhs_jacobian()
 }
 
 // Round drag parameters and no gravity, so the drag forces below can be checked by hand.
-// For three_edge_line, every edge has c = 0.5 * rho * C_d * w * (l_main + l_backup) = 0.5 * 0.1 * 2.2 = 0.11
+// For three_edge_line, every edge has c = 0.5 * rho * C_d * w * (l_main + l_backup) = 0.5 * 0.1 * 2.2 = 0.11.
+// edge_drag returns the share of one end node, i.e. with c/2 = 0.055.
 Params drag_params()
 {
     Params p;
@@ -879,18 +880,18 @@ Params drag_params()
     return p;
 }
 
-// edge_drag(e, dq, v) = -c |v_perp| v_perp, where v_perp is the part of v normal to the edge
+// edge_drag(e, dq, v) = -(c/2) |v_perp| v_perp, where v_perp is the part of v normal to the edge
 void test_edge_drag()
 {
     const LineModel m(three_edge_line(), {0.0, 0.0}, {3.0, 0.0}, drag_params());
 
-    // Horizontal edge moving down at 2 m/s: c * 2 * 2 = 0.44 upwards
-    CHECK(close(m.edge_drag(0, {1.0, 0.0}, {0.0, -2.0}), Vec2(0.0, 0.44)));
+    // Horizontal edge moving down at 2 m/s: (c/2) * 2 * 2 = 0.22 upwards
+    CHECK(close(m.edge_drag(0, {1.0, 0.0}, {0.0, -2.0}), Vec2(0.0, 0.22)));
     // Sliding along the edge adds nothing
-    CHECK(close(m.edge_drag(0, {1.0, 0.0}, {3.0, -2.0}), Vec2(0.0, 0.44)));
+    CHECK(close(m.edge_drag(0, {1.0, 0.0}, {3.0, -2.0}), Vec2(0.0, 0.22)));
     CHECK(close(m.edge_drag(0, {1.0, 0.0}, {3.0, 0.0}), Vec2(0.0, 0.0)));
     // Diagonal edge, v = (2, 0): v_perp = (1, -1), |v_perp| = sqrt(2)
-    const double s = 0.11 * std::sqrt(2.0);
+    const double s = 0.055 * std::sqrt(2.0);
     CHECK(close(m.edge_drag(0, {1.0, 1.0}, {2.0, 0.0}), Vec2(-s, s)));
 }
 

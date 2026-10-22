@@ -13,8 +13,13 @@ LineModel::LineModel(const DiscreteLine& line,
      params_(p),
      has_slackliner_(false),
      node_slackliner_(-1),
-     m_(line_.node_mass)
+     m_(line_.node_mass),
+     drag_coefs_(line.num_elements())
 {
+   for (int e = 0; e < line_.num_elements(); e++) {
+      // 0.25; 0.5 from drag expression, 0.5 as the contribution to a node is half the edge worth of drag
+      drag_coefs_[e] = 0.25 * params_.rho_air * params_.c_drag * params_.webbing_width * (line_.l_main[e] + line_.l_backup[e]);
+   }
 }
 
 // TODO move to driver!
@@ -145,20 +150,22 @@ Vec2 LineModel::edge_drag(Eigen::Index e, const Vec2& dq, const Vec2& v, Mat2* K
 Vec2 LineModel::edge_drag(Eigen::Index e, const EdgeGeometry& geom, const Vec2& v, Mat2* Kq, Mat2* Kv) const {
    const double leninv = geom.leninv;
    const Vec2& u = geom.u;
-   const Vec2 vtilde = v - v.dot(u)*u; // Orthogonal part of v
+   const Vec2& n = geom.n;
 
-   const double vnorm2 = vtilde.squaredNorm();
-   if (vnorm2 == 0.0){
+   const double s = v.dot(n);
+
+   const double vlen = std::abs(s);
+   if (vlen == 0.0){
       if (Kq) Kq->setZero();
       if (Kv) Kv->setZero();
       return Vec2::Zero();
    }
 
-   const double c = 0.5 * params_.rho_air * params_.c_drag * params_.webbing_width * (line_.l_main[e] + line_.l_backup[e]);
+   const double c = drag_coefs_[e];
 
-   const double vlen = std::sqrt(vnorm2);
-   Vec2 drag = - c * vtilde * vlen;
+   Vec2 drag = - c * s * vlen * n;
 
+   const Vec2 vtilde = s*n; // Orthogonal part of v
    Mat2 ddrag_dvtilde;
    const Mat2 I = Mat2::Identity();
    const Mat2& IuuT = geom.IuuT;
@@ -220,24 +227,24 @@ void LineModel::assemble(CRef<Mat2X> q, CRef<Mat2X> v, Ref<Mat2X> F, BlockTriMat
       const Vec2 f = edge_force(e, geom, vel_vector(v, e), edge_Kqptr, edge_Kvptr);
 
       if (a_free) {
-         F.col(a) += f + 0.5 * edge_drag(e, geom, v.col(a), drag_Kqptr, drag_Kvptr);
-         if (Kv) Kv->diag(a) += 0.5 * drag_Kv;
+         F.col(a) += f + edge_drag(e, geom, v.col(a), drag_Kqptr, drag_Kvptr);
+         if (Kv) Kv->diag(a) += drag_Kv;
          if (Kq) {
-            Kq->diag(a) -= 0.5 * drag_Kq;
+            Kq->diag(a) -= drag_Kq;
             if (b_free) {
-               Kq->upper(a) += 0.5 * drag_Kq;
+               Kq->upper(a) += drag_Kq;
             }
          }
       }
       if (b_free) {
-         F.col(b) += 0.5 * edge_drag(e, geom, v.col(b), drag_Kqptr, drag_Kvptr) - f;
-         if (Kv) Kv->diag(b) += 0.5 * drag_Kv;
+         F.col(b) += edge_drag(e, geom, v.col(b), drag_Kqptr, drag_Kvptr) - f;
+         if (Kv) Kv->diag(b) += drag_Kv;
 
          if (Kq) {
-            Kq->diag(b) += 0.5 * drag_Kq;
+            Kq->diag(b) += drag_Kq;
 
             if (a_free) {
-               Kq->lower(a) -= 0.5 * drag_Kq;
+               Kq->lower(a) -= drag_Kq;
             }
          }
       }

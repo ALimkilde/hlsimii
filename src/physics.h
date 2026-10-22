@@ -47,17 +47,20 @@ struct EdgeGeometry {
    double len;
    double leninv; // 1/len
    Vec2 u;
+   Vec2 n;
+
    Mat2 uuT;
    Mat2 IuuT; // I - uuT
 
    explicit EdgeGeometry(const Vec2& dq, bool with_matricies) : 
       len(dq.norm()), 
       leninv(1/len),
-      u(dq*leninv)
+      u(dq*leninv),
+      n(-u.y(), u.x())
    {
       if (with_matricies) {
          uuT = u*u.transpose();
-         IuuT = Mat2::Identity() - uuT;
+         IuuT = n*n.transpose();
       }
    }
 };
@@ -119,13 +122,12 @@ class LineModel {
       Vec2 anchor_left_, anchor_right_;
       Params params_;
 
+
       // States related to slackliner
       mutable bool has_slackliner_;
       mutable int node_slackliner_;
 
       mutable std::vector<double> m_;        // node masses
-      //TODO save inverses of mass to optimize. 
-      //Requires updating for place/removing slackliner
-      // mutable std::vector<double> inv_m_;    // inverse node masses
+      std::vector<double> drag_coefs_;
       
 };
