@@ -138,7 +138,7 @@ int main(int argc, char** argv)
         DiscreteLine dline = discretize(pulled, elements_per_segment(pulled, cfg.L / (cfg.N - 1)));
 
         const double dt_out = 1.0 / 60.0;   // frame rate of the written animation
-        const double atol = 1e-5, rtol = 1e-5;
+        const double atol = 1e-7, rtol = 1e-3;
         std::vector<bool> break_segments;
         for (const SegmentConfig& seg : cfg.segments) break_segments.push_back(seg.break_mainline);
 
