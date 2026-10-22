@@ -149,8 +149,8 @@
 - [ ] Profile for really large N and different lines
 
 ## Found optimization
-- [ ] Assemble; reuse sqrt and unit vector and 1/len
-- [ ] Precompute; vlen?
+- [X] Assemble; reuse sqrt and unit vector and 1/len
+- [-] Precompute; vlen?
 - [ ] Avoid rhsjac on rejected steps
 - [ ] Make event leash only compute two forces
 

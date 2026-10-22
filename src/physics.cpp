@@ -71,7 +71,7 @@ Vec2 LineModel::vel_vector(CRef<Mat2X> v, Eigen::Index e) const {
 
 Vec2 LineModel::edge_force(Eigen::Index e, const Vec2& dq, const Vec2& dv, Mat2* Kq, Mat2* Kv) const
 {
-   return edge_force(e, EdgeGeometry(dq), dv, Kq, Kv);
+   return edge_force(e, EdgeGeometry(dq, Kq || Kv), dv, Kq, Kv);
 }
 
 Vec2 LineModel::edge_force(Eigen::Index e, const EdgeGeometry& geom, const Vec2& dv, Mat2* Kq, Mat2* Kv) const
@@ -139,7 +139,7 @@ Vec2 LineModel::edge_force(Eigen::Index e, const EdgeGeometry& geom, const Vec2&
 }
 
 Vec2 LineModel::edge_drag(Eigen::Index e, const Vec2& dq, const Vec2& v, Mat2* Kq, Mat2* Kv) const {
-   return edge_drag(e, EdgeGeometry(dq), v, Kq, Kv);
+   return edge_drag(e, EdgeGeometry(dq, Kq || Kv), v, Kq, Kv);
 }
 
 Vec2 LineModel::edge_drag(Eigen::Index e, const EdgeGeometry& geom, const Vec2& v, Mat2* Kq, Mat2* Kv) const {
@@ -216,7 +216,7 @@ void LineModel::assemble(CRef<Mat2X> q, CRef<Mat2X> v, Ref<Mat2X> F, BlockTriMat
 
       const Vec2 dq = edge_vector(q, e);
 
-      const EdgeGeometry geom(dq);
+      const EdgeGeometry geom(dq, Kq || Kv);
       const Vec2 f = edge_force(e, geom, vel_vector(v, e), edge_Kqptr, edge_Kvptr);
 
       if (a_free) {

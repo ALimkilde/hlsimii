@@ -50,13 +50,16 @@ struct EdgeGeometry {
    Mat2 uuT;
    Mat2 IuuT; // I - uuT
 
-   explicit EdgeGeometry(const Vec2& dq) : 
+   explicit EdgeGeometry(const Vec2& dq, bool with_matricies) : 
       len(dq.norm()), 
       leninv(1/len),
-      u(dq*leninv),
-      uuT(u*u.transpose()), //TODO; avoid computation if Kq, Kv not existing
-      IuuT(Mat2::Identity() - uuT)
-   {}
+      u(dq*leninv)
+   {
+      if (with_matricies) {
+         uuT = u*u.transpose();
+         IuuT = Mat2::Identity() - uuT;
+      }
+   }
 };
 
 class LineModel {
