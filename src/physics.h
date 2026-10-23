@@ -128,7 +128,7 @@ class LineModel {
       mutable bool has_slackliner_;
       mutable int node_slackliner_;
 
-      mutable std::vector<double> m_;        // node masses
+      mutable Vec m_, minv_;        // node masses and inverses
       std::vector<double> drag_coefs_;
       
 };

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <vector>
-
+#include "eigen_include.h"
 #include "line.h"
 
 // The computational model: a chain of E springs (elements) between E+1 point masses (nodes).
@@ -12,8 +12,9 @@ struct DiscreteLine {
     std::vector<double> k_backup;  // spring constant of the backup [N/m], size E
     std::vector<double> l_main;    // rest length of the main line [m], size E
     std::vector<double> l_backup;  // rest length of the backup [m], size E
-    std::vector<double> node_mass; // lumped mass of the free nodes [kg], size E-1
     std::vector<int> element_segment; // segment id of each element, size E
+                                      //
+    Vec node_mass; // lumped mass of the free nodes [kg], size E-1
 
     int num_elements() const;
     int num_nodes() const;         // free nodes, E-1

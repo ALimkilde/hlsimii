@@ -43,7 +43,7 @@ DiscreteLine discretize(const Line& line, const std::vector<int>& n_per_segment)
     d.element_segment.reserve(num_el);
 
     // Lumped mass on all nodes 0..E, anchors included
-    std::vector<double> lumped(num_el + 1, 0.0);
+   Vec lumped = Vec::Zero(num_el + 1);
 
     int e = 0;
     for (std::size_t s = 0; s < segments.size(); ++s) {
@@ -61,24 +61,22 @@ DiscreteLine discretize(const Line& line, const std::vector<int>& n_per_segment)
             d.element_segment.push_back(static_cast<int>(s));
 
             // Lump half of the element mass on each of its end nodes
-            lumped[e] += 0.5 * m;
-            lumped[e + 1] += 0.5 * m;
+            lumped(e) += 0.5 * m;
+            lumped(e + 1) += 0.5 * m;
         }
     }
 
     // Spread each anchor's mass evenly over the free nodes of its segment.
     // First segment: nodes 1..n_first. Last segment: nodes E-n_last..E-1.
-    const int first_end = std::min(n_per_segment.front(), num_el - 1);
-    for (int i = 1; i <= first_end; ++i)
-        lumped[i] += lumped[0] / first_end;
+    const int first_count = std::min(n_per_segment.front(), num_el - 1);
+    lumped.segment(1, first_count).array() += lumped(0) / first_count;
 
     const int last_begin = std::max(num_el - n_per_segment.back(), 1);
     const int last_count = num_el - last_begin;
-    for (int i = last_begin; i <= num_el - 1; ++i)
-        lumped[i] += lumped[num_el] / last_count;
+    lumped.segment(last_begin, last_count).array() += lumped(num_el) / last_count;
 
     // Keep only the free nodes 1..E-1
-    d.node_mass.assign(lumped.begin() + 1, lumped.end() - 1);
+    d.node_mass = lumped.segment(1, num_el - 1);
     return d;
 }
 

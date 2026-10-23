@@ -37,7 +37,7 @@ DiscreteLine three_edge_line()
     d.k_backup = {50.0, 50.0, 50.0};
     d.l_main = {1.0, 1.0, 1.0};
     d.l_backup = {1.2, 1.2, 1.2};
-    d.node_mass = {1.0, 1.0};
+    d.node_mass = Vec::Constant(2, 1.0);
     d.element_segment = {0, 0, 0};
     return d;
 }
@@ -366,7 +366,7 @@ DiscreteLine five_edge_line()
     d.k_backup = {50.0, 60.0, 70.0, 80.0, 90.0};
     d.l_main = {1.0, 1.0, 1.0, 1.0, 1.0};
     d.l_backup = {1.2, 1.2, 1.2, 1.2, 1.2};
-    d.node_mass = {1.1, 1.3, 1.7, 1.9};
+    d.node_mass = (Vec(4) << 1.1, 1.3, 1.7, 1.9).finished();
     d.element_segment = {0, 0, 0, 0, 0};
     return d;
 }
@@ -581,7 +581,7 @@ void test_assemble_single_node()
     d.k_backup = {50.0, 50.0};
     d.l_main = {1.0, 1.0};
     d.l_backup = {1.2, 1.2};
-    d.node_mass = {1.0};
+    d.node_mass = Vec::Constant(1, 1.0);
     d.element_segment = {0, 0};
 
     Params p;
@@ -993,7 +993,7 @@ DiscreteLine uniform_line(int N)
     d.k_backup.assign(N, 50.0);
     d.l_main.assign(N, 3.0 / N);
     d.l_backup.assign(N, 3.6 / N);
-    d.node_mass.assign(N - 1, 1.0);
+    d.node_mass = Vec::Constant(N - 1, 1.0);
     d.element_segment.assign(N, 0);
     return d;
 }

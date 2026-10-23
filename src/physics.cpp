@@ -14,6 +14,7 @@ LineModel::LineModel(const DiscreteLine& line,
      has_slackliner_(false),
      node_slackliner_(-1),
      m_(line_.node_mass),
+     minv_(line_.node_mass.cwiseInverse()),
      drag_coefs_(line.num_elements())
 {
    for (int e = 0; e < line_.num_elements(); e++) {
@@ -40,14 +41,16 @@ void LineModel::place_slackliner(const int node, double mass) const {
 
    has_slackliner_ = true;
    node_slackliner_ = node;
-   m_[node_slackliner_] = line_.node_mass[node_slackliner_] + mass;
+   m_(node_slackliner_) = line_.node_mass(node_slackliner_) + mass;
+   minv_(node_slackliner_) = 1.0/m_(node_slackliner_);
 }
 
 void LineModel::remove_slackliner() const {
    if (!has_slackliner_) return;
 
    has_slackliner_ = false;
-   m_[node_slackliner_] = line_.node_mass[node_slackliner_];
+   m_(node_slackliner_) = line_.node_mass(node_slackliner_);
+   minv_(node_slackliner_) = 1.0/m_(node_slackliner_);
 }
 
 // dq = qb - qa for edge e, which runs from node e-1 to node e.
@@ -202,7 +205,7 @@ void LineModel::assemble(CRef<Mat2X> q, CRef<Mat2X> v, Ref<Mat2X> F, BlockTriMat
    assert(num_edges == num_nodes + 1);
 
    for (Eigen::Index i = 0; i < num_nodes; ++i){
-      F.col(i) = m_[i] * g;
+      F.col(i) = m_(i) * g;
    }
 
    for (Eigen::Index e = 0; e < num_edges; ++e){
@@ -262,7 +265,7 @@ Vec2 LineModel::node_force(CRef<Mat2X> q, CRef<Mat2X> v, Eigen::Index i) const {
    assert(q.cols() == v.cols());
    assert(line_.num_elements() == q.cols() + 1);
 
-   Vec2 out = m_[i] * params_.gravity;
+   Vec2 out = m_(i) * params_.gravity;
 
    // Two edges contribute
    for (Eigen::Index e = i; e <= i+1; ++e){
@@ -436,21 +439,16 @@ void LineModel::rhs(CRef<Mat2X> q, CRef<Mat2X> v, Ref<Mat2X> dq, Ref<Mat2X> dv, 
    dq = v; 
 
    // Set change in velocities based on forces
-   // TODO; we should probably precompute minv! 
-   Eigen::Map<const Eigen::RowVectorXd> m(m_.data(), m_.size());
-   Vec minv = m.cwiseInverse();
+   dv.array().rowwise() *= minv_.transpose().array();
 
-   dv.array().rowwise() /= m.array();
-
-   if (Kq) Kq->multiply_rowwise( minv );
-   if (Kv) Kv->multiply_rowwise( minv );
+   if (Kq) Kq->multiply_rowwise( minv_ );
+   if (Kv) Kv->multiply_rowwise( minv_ );
 
 }
 
 double LineModel::gravitational_energy(CRef<Mat2X> q) const
 {
-   Eigen::Map<const Eigen::VectorXd> m(m_.data(), m_.size());
-   return q.row(1).dot(m)*params_.gravity.norm();
+   return q.row(1).dot(m_)*params_.gravity.norm();
 }
 double LineModel::elastic_energy(CRef<Mat2X> q) const
 {
@@ -476,7 +474,5 @@ double LineModel::elastic_energy(CRef<Mat2X> q) const
 
 double LineModel::kinetic_energy(CRef<Mat2X> v) const
 {
-   Eigen::Map<const Eigen::VectorXd> m(m_.data(), m_.size());
-   
-   return 0.5 * m.dot(v.colwise().squaredNorm());
+   return 0.5 * m_.dot(v.colwise().squaredNorm());
 }

@@ -34,7 +34,7 @@ DiscreteLine three_edge_line()
     d.k_backup = {50.0, 50.0, 50.0};
     d.l_main = {1.0, 1.0, 1.0};
     d.l_backup = {1.2, 1.2, 1.2};
-    d.node_mass = {1.0, 1.0};
+    d.node_mass = Vec::Constant(2, 1.0);
     d.element_segment = {0, 0, 0};
     return d;
 }
