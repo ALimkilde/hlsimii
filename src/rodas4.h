@@ -151,7 +151,7 @@ class Rodas4 {
       // Getters
       double t() const { return t_; }
       double tprev() const { return tprev_; }
-      Vec state() const { return y_; } 
+      const Vec& state() const { return y_; } 
       bool jac_is_current() const { return jac_is_current_; }
 
   private:

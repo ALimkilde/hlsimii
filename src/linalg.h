@@ -85,6 +85,7 @@ class BlockTriLU {
    private:
       int num_blocks_;
       std::vector<Mat2> D, U, L; // D holds inverse matrices after factorization
+                                 // L holds D[b] * A.lower(l)
       mutable std::vector<Vec2> d;
       
 };
