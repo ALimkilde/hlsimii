@@ -16,8 +16,8 @@
 
 ## Optimizations
 
-- [ ] Make sure that jacobian is not regenerated after rejected steps
-- [ ] Avoid unecessary rhs calls - in leash event loose code!
+- [X] Make sure that jacobian is not regenerated after rejected steps
+- [X] Avoid unecessary rhs calls - in leash event loose code!
 - [-] Avoid unecessary memory (ynew? embedded?)
 - [-] Avoid unecessary heap memory (stages to tmp_rhs) - Not a big issue
 - [X] Exploit structures of Jacobian

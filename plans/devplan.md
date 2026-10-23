@@ -151,8 +151,12 @@
 ## Found optimization
 - [X] Assemble; reuse sqrt and unit vector and 1/len
 - [-] Precompute; vlen?
-- [ ] Avoid rhsjac on rejected steps
-- [ ] Make event leash only compute two forces
+- [X] Avoid rhsjac on rejected steps
+- [X] Make event leash only compute two forces
+- [ ] Template edge_drag, edge_force -> 10% speedup on WASM
+- [-] Avoid allocations in Rodas, physics -> 3% speedup
+- [X] Precompute D[i] L[l] and store in L[l] -> 3% speedup
+- [X] Rewrite drag derivative to rank-1
 
 ## 15. WASM
 
@@ -167,6 +171,7 @@
 ## 16. Website integration
 
 - [ ] Define a small, stable WASM API.
+- [ ] Seperate backup and leash falls so they can be runned in parallel
 - [ ] Keep physics/integration state inside WASM.
 - [ ] Transfer only necessary inputs/results across the JS/WASM boundary.
 - [ ] Add visualization separately from the numerical core.
