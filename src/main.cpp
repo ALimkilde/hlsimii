@@ -92,18 +92,18 @@ SolverType parse_solver(const std::string& name)
 {
     if (name == "rk45") return SolverType::RungeKutta45;
     if (name == "rodas4") return SolverType::Rosenbrock43;
-    throw std::runtime_error("unknown solver '" + name + "', expected rk45 or rodas4");
+    throw std::runtime_error("unknown solver '" + name + "', expected rodas4 or rk45");
 }
 
 } // namespace
 
 int main(int argc, char** argv)
 {
-    const std::string usage = std::string("usage: ") + argv[0] + " <config.yaml> [webbings.yaml] [--solver rk45|rodas4]\n";
+    const std::string usage = std::string("usage: ") + argv[0] + " <config.yaml> [webbings.yaml] [--solver rodas4|rk45 (default rodas4)]\n";
 
     // Positional arguments in order, --solver anywhere
     std::vector<std::string> positional;
-    std::string solver_name = "rk45";
+    std::string solver_name = "rodas4";
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
         if (arg == "--solver") {
