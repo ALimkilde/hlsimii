@@ -84,6 +84,15 @@ Vec2 LineModel::edge_force(Eigen::Index e, const Vec2& dq, const Vec2& dv, Mat2*
 
 Vec2 LineModel::edge_force(Eigen::Index e, const EdgeGeometry& geom, const Vec2& dv, Mat2* Kq, Mat2* Kv) const
 {
+   if (Kq && Kv) return edge_force_impl<true,  true >(e, geom, dv, Kq, Kv);
+   if (Kq)       return edge_force_impl<true,  false>(e, geom, dv, Kq, Kv);
+   if (Kv)       return edge_force_impl<false, true >(e, geom, dv, Kq, Kv);
+   return               edge_force_impl<false, false>(e, geom, dv, Kq, Kv);
+}
+
+template<bool WithKq, bool WithKv>
+Vec2 LineModel::edge_force_impl(Eigen::Index e, const EdgeGeometry& geom, const Vec2& dv, Mat2* Kq, Mat2* Kv) const
+{
    const double len = geom.len;
    const double leninv = geom.leninv;
    const double s_main = len - line_.l_main[e];
@@ -105,8 +114,8 @@ Vec2 LineModel::edge_force(Eigen::Index e, const EdgeGeometry& geom, const Vec2&
    c_KV *= params_.tau_KV; // c_KV = tau_KV * k
      
    if (T == 0.0) {                 // slack edge
-      if (Kq) Kq->setZero();
-      if (Kv) Kv->setZero();
+      if constexpr (WithKq) Kq->setZero();
+      if constexpr (WithKv) Kv->setZero();
       return Vec2::Zero();
    } 
  
@@ -117,18 +126,18 @@ Vec2 LineModel::edge_force(Eigen::Index e, const EdgeGeometry& geom, const Vec2&
    // Clip:
    if (feKV <= -T) {
       feKV = -T;
-      if (Kq) Kq->setZero();
-      if (Kv) Kv->setZero();
+      if constexpr (WithKq) Kq->setZero();
+      if constexpr (WithKv) Kv->setZero();
    } else {
-      
+
       if (feKV >= 0) {
          feKV = 0; // Dont dampen stretching edges
-         if (Kv) Kv->setZero();
+         if constexpr (WithKv) Kv->setZero();
       }
 
       const Mat2& uuT = geom.uuT;
 
-      if (Kq) {
+      if constexpr (WithKq) {
          const Mat2& IuuT = geom.IuuT;
          *Kq = T*leninv * IuuT + dT * uuT;
          if (feKV < 0) {
@@ -138,7 +147,9 @@ Vec2 LineModel::edge_force(Eigen::Index e, const EdgeGeometry& geom, const Vec2&
          }
       }
 
-      if (!(feKV>=0) && Kv) *Kv = c_KV * uuT; 
+      if constexpr (WithKv) {
+         if (!(feKV>=0)) *Kv = c_KV * uuT;
+      }
 
    }
 
@@ -151,6 +162,14 @@ Vec2 LineModel::edge_drag(Eigen::Index e, const Vec2& dq, const Vec2& v, Mat2* K
 }
 
 Vec2 LineModel::edge_drag(Eigen::Index e, const EdgeGeometry& geom, const Vec2& v, Mat2* Kq, Mat2* Kv) const {
+   if (Kq && Kv) return edge_drag_impl<true,  true >(e, geom, v, Kq, Kv);
+   if (Kq)       return edge_drag_impl<true,  false>(e, geom, v, Kq, Kv);
+   if (Kv)       return edge_drag_impl<false, true >(e, geom, v, Kq, Kv);
+   return               edge_drag_impl<false, false>(e, geom, v, Kq, Kv);
+}
+
+template<bool WithKq, bool WithKv>
+Vec2 LineModel::edge_drag_impl(Eigen::Index e, const EdgeGeometry& geom, const Vec2& v, Mat2* Kq, Mat2* Kv) const {
    const Vec2& u = geom.u;
    const Vec2& n = geom.n;
 
@@ -158,8 +177,8 @@ Vec2 LineModel::edge_drag(Eigen::Index e, const EdgeGeometry& geom, const Vec2& 
 
    const double vlen = std::abs(s);
    if (vlen == 0.0){
-      if (Kq) Kq->setZero();
-      if (Kv) Kv->setZero();
+      if constexpr (WithKq) Kq->setZero();
+      if constexpr (WithKv) Kv->setZero();
       return Vec2::Zero();
    }
 
@@ -167,11 +186,11 @@ Vec2 LineModel::edge_drag(Eigen::Index e, const EdgeGeometry& geom, const Vec2& 
 
    Vec2 drag = - c * s * vlen * n;
 
-   if (Kq) {
+   if constexpr (WithKq) {
       *Kq = (c * vlen * geom.leninv) * (s * u + 2.0 * v.dot(u) * n) * n.transpose();
    }
 
-   if (Kv) {
+   if constexpr (WithKv) {
       *Kv = (-2.0 * c * vlen) * geom.IuuT;
    }
 
@@ -181,21 +200,30 @@ Vec2 LineModel::edge_drag(Eigen::Index e, const EdgeGeometry& geom, const Vec2& 
 
 void LineModel::assemble(CRef<Mat2X> q, CRef<Mat2X> v, Ref<Mat2X> F, BlockTriMat* Kq, BlockTriMat* Kv) const
 {
+   if (Kq && Kv) return assemble_impl<true,  true >(q, v, F, Kq, Kv);
+   if (Kq)       return assemble_impl<true,  false>(q, v, F, Kq, Kv);
+   if (Kv)       return assemble_impl<false, true >(q, v, F, Kq, Kv);
+   return               assemble_impl<false, false>(q, v, F, Kq, Kv);
+}
+
+template<bool WithKq, bool WithKv>
+void LineModel::assemble_impl(CRef<Mat2X> q, CRef<Mat2X> v, Ref<Mat2X> F, BlockTriMat* Kq, BlockTriMat* Kv) const
+{
    const Eigen::Index num_edges = line_.num_elements();
    const Eigen::Index num_nodes = q.cols();
    const Vec2& g = params_.gravity;
 
    Mat2 edge_Kq, drag_Kq;
-   Mat2 *edge_Kqptr = nullptr, *drag_Kqptr = nullptr; 
-   if (Kq) {
+   Mat2 *edge_Kqptr = nullptr, *drag_Kqptr = nullptr;
+   if constexpr (WithKq) {
       edge_Kqptr = &edge_Kq;
       drag_Kqptr = &drag_Kq;
       Kq->setZero();
    }
 
    Mat2 edge_Kv, drag_Kv;
-   Mat2 *edge_Kvptr = nullptr, *drag_Kvptr = nullptr; 
-   if (Kv) {
+   Mat2 *edge_Kvptr = nullptr, *drag_Kvptr = nullptr;
+   if constexpr (WithKv) {
       edge_Kvptr = &edge_Kv;
       drag_Kvptr = &drag_Kv;
       Kv->setZero();
@@ -216,13 +244,13 @@ void LineModel::assemble(CRef<Mat2X> q, CRef<Mat2X> v, Ref<Mat2X> F, BlockTriMat
 
       const Vec2 dq = edge_vector(q, e);
 
-      const EdgeGeometry geom(dq, Kq || Kv);
-      const Vec2 f = edge_force(e, geom, vel_vector(v, e), edge_Kqptr, edge_Kvptr);
+      const EdgeGeometry geom(dq, WithKq || WithKv);
+      const Vec2 f = edge_force_impl<WithKq, WithKv>(e, geom, vel_vector(v, e), edge_Kqptr, edge_Kvptr);
 
       if (a_free) {
-         F.col(a) += f + edge_drag(e, geom, v.col(a), drag_Kqptr, drag_Kvptr);
-         if (Kv) Kv->diag(a) += drag_Kv;
-         if (Kq) {
+         F.col(a) += f + edge_drag_impl<WithKq, WithKv>(e, geom, v.col(a), drag_Kqptr, drag_Kvptr);
+         if constexpr (WithKv) Kv->diag(a) += drag_Kv;
+         if constexpr (WithKq) {
             Kq->diag(a) -= drag_Kq;
             if (b_free) {
                Kq->upper(a) += drag_Kq;
@@ -230,10 +258,10 @@ void LineModel::assemble(CRef<Mat2X> q, CRef<Mat2X> v, Ref<Mat2X> F, BlockTriMat
          }
       }
       if (b_free) {
-         F.col(b) += edge_drag(e, geom, v.col(b), drag_Kqptr, drag_Kvptr) - f;
-         if (Kv) Kv->diag(b) += drag_Kv;
+         F.col(b) += edge_drag_impl<WithKq, WithKv>(e, geom, v.col(b), drag_Kqptr, drag_Kvptr) - f;
+         if constexpr (WithKv) Kv->diag(b) += drag_Kv;
 
-         if (Kq) {
+         if constexpr (WithKq) {
             Kq->diag(b) += drag_Kq;
 
             if (a_free) {
@@ -242,14 +270,14 @@ void LineModel::assemble(CRef<Mat2X> q, CRef<Mat2X> v, Ref<Mat2X> F, BlockTriMat
          }
       }
 
-      if (Kq) {
+      if constexpr (WithKq) {
          if (a_free) Kq->diag(a) -= edge_Kq;
          if (b_free) Kq->diag(b) -= edge_Kq;
          if (a_free && b_free) Kq->upper(a) += edge_Kq;
          if (a_free && b_free) Kq->lower(a) += edge_Kq;
       }
 
-      if (Kv) {
+      if constexpr (WithKv) {
          if (a_free) Kv->diag(a) -= edge_Kv;
          if (b_free) Kv->diag(b) -= edge_Kv;
          if (a_free && b_free) Kv->upper(a) += edge_Kv;

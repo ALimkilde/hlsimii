@@ -130,5 +130,10 @@ class LineModel {
 
       mutable Vec m_, minv_;        // node masses and inverses
       std::vector<double> drag_coefs_;
-      
+
+      // Compile-time versions with and without Jacobians (public functions dispatch on nullptr), defined in physics.cpp
+      template<bool WithKq, bool WithKv> Vec2 edge_force_impl(Eigen::Index e, const EdgeGeometry& geom, const Vec2& dv, Mat2* Kq, Mat2* Kv) const;
+      template<bool WithKq, bool WithKv> Vec2 edge_drag_impl(Eigen::Index e, const EdgeGeometry& geom, const Vec2& v, Mat2* Kq, Mat2* Kv) const;
+      template<bool WithKq, bool WithKv> void assemble_impl(CRef<Mat2X> q, CRef<Mat2X> v, Ref<Mat2X> F, BlockTriMat* Kq, BlockTriMat* Kv) const;
+
 };
