@@ -122,17 +122,7 @@
 - [X] Reuse all factorization/workspace memory.
 - [X] Compare every structured solve against the dense reference solver.
 
-## 13. Make sure IO is correct
-- [ ] Make sure peak forces are calculated within each timestep (not only on output grid)
-- [ ] Make sure the whole table is computed correctly (implemented by me)
-- [ ] Save output to .csv file
-- [ ] Take Drag and KV scaling as input
-- [ ] Take Webbing width as input
-- [ ] Include Shockload values 
-   - [ ] Peak webbing during backup release
-   - [ ] Peak leash during flick up during backup release
-
-## 14. Performance optimization
+## 13. Performance optimization
 
 - [X] Profile before optimizing further.
 - [X] Measure separately:
@@ -148,17 +138,37 @@
 - [X] Keep automated correctness tests alongside performance tests.
 - [ ] Profile for really large N and different lines
 
-## Found optimization
+## 14. Found optimization
+
 - [X] Assemble; reuse sqrt and unit vector and 1/len
 - [-] Precompute; vlen?
 - [X] Avoid rhsjac on rejected steps
 - [X] Make event leash only compute two forces
-- [ ] Template edge_drag, edge_force -> 10% speedup on WASM
+- [X] Template edge_drag, edge_force -> 10% speedup on WASM
 - [-] Avoid allocations in Rodas, physics -> 3% speedup
 - [X] Precompute D[i] L[l] and store in L[l] -> 3% speedup
 - [X] Rewrite drag derivative to rank-1
 
-## 15. WASM
+## 15. Make sure IO is correct
+
+- [ ] Make sure peak forces are calculated within each timestep (not only on output grid)
+- [ ] Make sure the whole table is computed correctly (implemented by me)
+- [ ] Save output to .csv file
+- [ ] Take Drag and KV scaling as input
+- [ ] Take Webbing width as input
+- [ ] Include Shockload values 
+   - [ ] Peak webbing during backup release
+   - [ ] Peak leash during flick up during backup release
+- [ ] Extensive testing against ISA backup fall
+
+## 16. Energy calculation
+
+- [ ] Make 'static' energy solver for lower point of fall (assume f = 0 for all other nodes, fx = 0 for slackliner node, and Ep_old + Ee_old = Ep_new + Ee_new)
+- [ ] Test the solver
+- [ ] Make solver with mass lumped in the middle.
+- [ ] Test against ISA - should give exactly the same!
+
+## 16. WASM
 
 - [ ] Compile the existing correct implementation to WASM.
 - [ ] Keep the entire integration run inside WASM where possible.
@@ -168,7 +178,7 @@
 - [ ] Investigate WASM SIMD only if profiling justifies it.
 - [ ] Verify numerical results against the native/reference implementation.
 
-## 16. Website integration
+## 17. Website integration
 
 - [ ] Define a small, stable WASM API.
 - [ ] Seperate backup and leash falls so they can be runned in parallel
@@ -177,12 +187,11 @@
 - [ ] Add visualization separately from the numerical core.
 - [ ] Add performance regression tests for representative simulations.
 
-## 17. Energy calculation
+## 18. Validations
 
-- [ ] Make 'static' energy solver for lower point of fall (assume f = 0 for all other nodes, fx = 0 for slackliner node, and Ep_old + Ee_old = Ep_new + Ee_new)
-- [ ] Test the solver
-- [ ] Make solver with mass lumped in the middle.
-- [ ] Test against ISA - should give exactly the same!
+- [ ] Finish documentation!
+- [ ] Validate and make report on experiment
+- [ ] Validate and make report on comparison to ISA backup html
 
 ## Milestones
 
