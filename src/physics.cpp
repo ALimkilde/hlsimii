@@ -257,6 +257,28 @@ void LineModel::assemble(CRef<Mat2X> q, CRef<Mat2X> v, Ref<Mat2X> F, BlockTriMat
 
 }
 
+Vec2 LineModel::node_force(CRef<Mat2X> q, CRef<Mat2X> v, Eigen::Index i) const {
+   assert(0 <= i && i < q.cols());
+   assert(q.cols() == v.cols());
+   assert(line_.num_elements() == q.cols() + 1);
+
+   Vec2 out = m_[i] * params_.gravity;
+
+   // Two edges contribute
+   for (Eigen::Index e = i; e <= i+1; ++e){
+      const Vec2 dq = edge_vector(q, e);
+      const EdgeGeometry geom(dq, false); // No Jacobian
+
+      const Vec2 f = edge_force(e, geom, vel_vector(v, e));
+      out += edge_drag(e, geom, v.col(i));
+
+      if (e == i) out -= f;
+      if (e == i+1) out += f;
+   }
+
+   return out;
+}
+
 void LineModel::residual(const Vec& q_flat, Vec& r_flat, BlockTriMat* jac) const {
 
    assert(r_flat.size() == q_flat.size());

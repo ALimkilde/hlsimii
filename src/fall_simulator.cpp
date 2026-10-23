@@ -185,17 +185,10 @@ double FallSimulator::event_leash_loose(const double y_acc_leash) const
 double FallSimulator::event_leash_loose_flat(const double t, CRef<Vec> z) const
 {
    ConstStateView s = const_state_view(z);
-   const Eigen::Index N = s.q.cols();
-
-   // TODO Can be optimized to only compute acceleration of specific node.
-   Mat2X F(2, N);
-   // TODO Add velocity here once drag and KV is added
-   linemodel_.assemble(s.q, s.v, F); // Compute forces
-
-   const double y_acc_leash = F(1, node_slackliner_) / linemodel_.get_mass(node_slackliner_);
+   const Vec2 F = linemodel_.node_force(s.q, s.v, node_slackliner_); // Compute force
+   const double y_acc_leash = F(1) / linemodel_.get_mass(node_slackliner_);
 
    return event_leash_loose(y_acc_leash);
-
 }
 
 void FallSimulator::free_slackliner(const double t, CRef<Mat2X> q, CRef<Mat2X> v)

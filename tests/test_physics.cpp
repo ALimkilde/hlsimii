@@ -1023,6 +1023,26 @@ void test_drag_mesh_refinement()
 
 } // namespace
 
+// node_force(i) is column i of assemble(), with gravity, Kelvin-Voigt damping and drag all on.
+// The line is stretched and the velocities make some edges retract, so the damping is active.
+void test_node_force_matches_assemble()
+{
+    const LineModel m(three_edge_line(), {0.0, 0.0}, {3.6, 0.3}, Params{});
+
+    Mat2X q(2, 2);
+    q << 1.3, 2.4,
+         -0.5, -0.4;
+    Mat2X v(2, 2);
+    v << 0.7, -1.1,
+         -2.0, 0.4;
+
+    Mat2X F(2, 2);
+    m.assemble(q, v, F);
+    for (Eigen::Index i = 0; i < q.cols(); ++i) {
+        CHECK(close(m.node_force(q, v, i), F.col(i)));
+    }
+}
+
 int main()
 {
     test_edge_vector();
@@ -1049,6 +1069,7 @@ int main()
     test_edge_drag_jacobian();
     test_assemble_drag_terminal_velocity();
     test_drag_mesh_refinement();
+    test_node_force_matches_assemble();
 
     if (failures > 0) {
         std::cerr << failures << " check(s) failed\n";
