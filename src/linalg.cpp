@@ -87,8 +87,8 @@ void BlockTriLU::compute(const BlockTriMat& A)
       const Eigen::Index l = b-1;
       const bool u_exist = u < num_blocks_ - 1;
 
-      L[l] = A.lower(l); // Save the lower part of A
-      D[b] = (A.diag(b) - L[l]*U[b-1]).inverse();
+      D[b] = (A.diag(b) - A.lower(l)*U[b-1]).inverse();
+      L[l] = D[b] * A.lower(l);
       if (u_exist) U[b] = D[b]*A.upper(b);
    }
 }
@@ -101,11 +101,10 @@ void BlockTriLU::solve(Ref<Vec> x, CRef<Vec> b) const
    for (int i = 1; i < num_blocks_; i++) {
       const Eigen::Index l = i-1;
 
-      d[i] = D[i]*(b.segment<2>(2*i) - L[l]*d[i-1]); 
+      d[i] = D[i]*b.segment<2>(2*i) - L[l]*d[i-1]; 
    }
 
    // Back substitution
-
    x.segment<2>(2*(num_blocks_-1)) = d[num_blocks_-1];
 
    for (int i = num_blocks_-2; i >= 0; i--) {
