@@ -99,18 +99,6 @@ bool FallSimulator::on_output(const double t, CRef<Vec> z, SimData& data, const 
    data.net_forces.emplace_back(F);
 
    data.y_slackliner.push_back(y_slackliner(t, s.q));
-   data.elastic_energy.push_back( linemodel_.elastic_energy(s.q));
-
-   double Ek = linemodel_.kinetic_energy(s.v);
-   double Eg = linemodel_.gravitational_energy(s.q);
-   if (!attached) {
-      double ytmp = freefall_.get_y(t) + slackliner_.l_leash;
-      Eg -= ytmp * freefall_.get_gy() * slackliner_.m;
-      double vy = freefall_.get_vy(t);
-      Ek += 0.5 * vy * vy * slackliner_.m;
-   }
-   data.gravitational_energy.push_back( Eg );
-   data.kinetic_energy.push_back( Ek );
 
    return true; // Never stop on output
 }
@@ -125,17 +113,13 @@ bool FallSimulator::on_step(const double t, CRef<Vec> z, SimData& data) const
 
    data.lowest_point_slackliner = std::min(data.lowest_point_slackliner, y_slackliner(t, s.q));
 
-   // TODO; Move this to physics
-   for (Eigen::Index e = 0; e <= num_nodes; ++e) {
-      const double T = linemodel_.edge_force(e, linemodel_.edge_vector(s.q, e), Vec2::Zero()).norm();
-      data.peak_force_webbing = std::max(data.peak_force_webbing, T);
-   }
    const double T_left  = linemodel_.edge_force(0, linemodel_.edge_vector(s.q, 0), Vec2::Zero()).norm();
    const double T_right = linemodel_.edge_force(num_nodes, linemodel_.edge_vector(s.q, num_nodes), Vec2::Zero()).norm();
    data.peak_force_anchors[0] = std::max(data.peak_force_anchors[0], T_left);
    data.peak_force_anchors[1] = std::max(data.peak_force_anchors[1], T_right);
 
-   // TODO peak_force_leash and peak_force_webbing_at_leash_fall: need to know if the slackliner is attached
+   data.peak_force_webbing = std::max(data.peak_force_webbing, linemodel_.max_tension(s.q));
+   data.peak_force_leash = std::max(data.peak_force_leash, linemodel_.max_leash_tension(s.q));
 
    return true; // Never stop on step
 }

@@ -151,7 +151,7 @@
 
 ## 15. Make sure IO is correct
 
-- [ ] Make sure peak forces are calculated within each timestep (not only on output grid)
+- [X] Make sure peak forces are calculated within each timestep (not only on output grid)
 - [ ] Make sure the whole table is computed correctly (implemented by me)
 - [ ] Save output to .csv file
 - [ ] Take Drag and KV scaling as input

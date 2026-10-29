@@ -49,19 +49,6 @@ void write_fall_line_csv(const std::string& path, const SimData& data, Vec2 anch
     }
 }
 
-// One row per frame: gravitational, elastic and kinetic energy of line + slackliner.
-void write_fall_energy_csv(const std::string& path, const SimData& data)
-{
-    std::ofstream out(path);
-    if (!out) throw std::runtime_error("cannot write " + path);
-
-    out << "t,E_grav,E_elastic,E_kin\n";
-    for (size_t f = 0; f < data.time.size(); ++f) {
-        out << data.time[f] << "," << data.gravitational_energy[f] << "," << data.elastic_energy[f] << ","
-            << data.kinetic_energy[f] << "\n";
-    }
-}
-
 // One row per frame: leash ring (the node the slackliner falls onto) and harness.
 // taut = 1 when the harness hangs a full leash length below the ring.
 void write_fall_slackliner_csv(const std::string& path, const SimData& data, double l_leash)
@@ -173,21 +160,18 @@ int main(int argc, char** argv)
         print_summary("Leash fall", leash);
         write_fall_line_csv("fall_line.csv", leash, anchor_left, anchor_right);
         write_fall_slackliner_csv("fall_slackliner.csv", leash, l_leash);
-        write_fall_energy_csv("fall_energy.csv", leash);
-        std::cout << "Wrote fall_line.csv, fall_slackliner.csv and fall_energy.csv\n";
+        std::cout << "Wrote fall_line.csv and fall_slackliner.csv\n";
 
         if (has_backup_fall) {
             const SimData backup = Experiments::simulateBackupFall(cfg, dline, cfg.T, dt_out, break_segments, solvertype, atol, rtol);
             print_summary("Backup fall", backup);
             write_fall_line_csv("fall_line_backup.csv", backup, anchor_left, anchor_right);
             write_fall_slackliner_csv("fall_slackliner_backup.csv", backup, l_leash);
-            write_fall_energy_csv("fall_energy_backup.csv", backup);
-            std::cout << "Wrote fall_line_backup.csv, fall_slackliner_backup.csv and fall_energy_backup.csv\n";
+            std::cout << "Wrote fall_line_backup.csv and fall_slackliner_backup.csv\n";
         } else {
             // Remove the files of an earlier run so the animation doesn't show a stale backup fall
             std::filesystem::remove("fall_line_backup.csv");
             std::filesystem::remove("fall_slackliner_backup.csv");
-            std::filesystem::remove("fall_energy_backup.csv");
         }
     } catch (const std::exception& e) {
         std::cerr << "error: " << e.what() << "\n";

@@ -21,7 +21,7 @@ int failures = 0;
     } while (0)
 
 const double test_tol = 1e-5;   // the solvers' default atol and rtol
-const double rms_threshold = 1e-4;  // worst seen at test_tol: 1.2e-5 (example_backup, rk45, E_kin)
+const double rms_threshold = 1e-4;  // worst seen at test_tol: 1.2e-5 (example_backup, rk45, E_kin, a column since removed)
 
 // Reads a header line of column names followed by rows of numbers. Lines starting with # are skipped.
 regression::Trace read_csv(const std::string& path)

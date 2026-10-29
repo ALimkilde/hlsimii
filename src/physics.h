@@ -115,6 +115,8 @@ class LineModel {
       }
 
       double max_tension_flat(const Vec& q) const;
+      double max_tension(CRef<Mat2X> q) const;
+      double max_leash_tension(CRef<Mat2X> q) const;
  
       double gravitational_energy(CRef<Mat2X> q) const;
       double gravitational_energy_flat(const Vec& q_flat) const;
@@ -130,7 +132,6 @@ class LineModel {
       const DiscreteLine line_;
       Vec2 anchor_left_, anchor_right_;
       Params params_;
-
 
       // States related to slackliner
       mutable bool has_slackliner_;

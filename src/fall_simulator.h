@@ -13,7 +13,6 @@ enum class SolverType { RungeKutta45, Rosenbrock43 };
 struct SimData {
    double peak_force_leash = 0.0;
    double peak_force_webbing = 0.0;
-   double peak_force_webbing_at_leash_fall = 0.0; // /= peak_force_webbing => report shockload
    std::array<double, 2> peak_force_anchors = {0.0, 0.0};
 
    double lowest_point_slackliner = std::numeric_limits<double>::infinity();
@@ -26,9 +25,6 @@ struct SimData {
    std::vector<Mat2X> velocities;
    std::vector<Mat2X> net_forces;
    std::vector<double> y_slackliner;
-   std::vector<double> gravitational_energy;
-   std::vector<double> elastic_energy;
-   std::vector<double> kinetic_energy;
 
    int n_accepts = 0;
    int n_rejects = 0;

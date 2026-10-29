@@ -64,21 +64,19 @@ inline std::vector<Fall> run_case(const std::string& name, SolverType solver, do
     return falls;
 }
 
-// The slackliner and energy traces; the same quantities as fall_slackliner.csv and fall_energy.csv
+// The slackliner trace; the same quantities as fall_slackliner.csv
 inline Trace trace_of(const SimData& data)
 {
-    Trace tr = {{"t", {}}, {"x_ring", {}}, {"y_ring", {}}, {"y_harness", {}},
-                {"E_grav", {}}, {"E_elastic", {}}, {"E_kin", {}}};
+    Trace tr = {{"t", {}}, {"x_ring", {}}, {"y_ring", {}}, {"y_harness", {}}};
     for (size_t f = 0; f < data.time.size(); ++f) {
         const auto ring = data.position[f].col(data.node_slackliner);
-        const double row[] = {data.time[f], ring.x(), ring.y(), data.y_slackliner[f],
-                              data.gravitational_energy[f], data.elastic_energy[f], data.kinetic_energy[f]};
+        const double row[] = {data.time[f], ring.x(), ring.y(), data.y_slackliner[f]};
         for (size_t c = 0; c < tr.size(); ++c) tr[c].values.push_back(row[c]);
     }
     return tr;
 }
 
-// sqrt(mean((a - ref)^2)) / sqrt(mean(ref^2)): unit free, so one threshold fits metres and joules
+// sqrt(mean((a - ref)^2)) / sqrt(mean(ref^2)): unit free, so one threshold fits every column
 inline double normalized_rms(const std::vector<double>& a, const std::vector<double>& ref)
 {
     double diff2 = 0.0, ref2 = 0.0;

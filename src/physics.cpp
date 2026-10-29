@@ -559,10 +559,14 @@ double LineModel::kinetic_energy(CRef<Mat2X> v) const
 }
 
 double LineModel::max_tension_flat(const Vec& q_flat) const {
-   Vec v_flat = Vec::Zero(q_flat.size()); // Zero velocity to avoid dampening
 
    CRef<Mat2X> q = as_const_mat2x(q_flat);
-   CRef<Mat2X> v = as_const_mat2x(v_flat);
+
+   return max_tension(q);
+
+}
+
+double LineModel::max_tension(CRef<Mat2X> q) const {
 
    double max_tension = 0;
 
@@ -573,6 +577,22 @@ double LineModel::max_tension_flat(const Vec& q_flat) const {
    }
 
    return max_tension;
+}
+
+double LineModel::max_leash_tension(CRef<Mat2X> q) const {
+
+   if (!has_slackliner_) return 0.0;
+
+   Eigen::Index e = node_slackliner_;
+   Vec2 f1 = edge_force(e, edge_vector(q,e), Vec2::Zero());
+
+   e = node_slackliner_ + 1;
+   Vec2 f2 = edge_force(e, edge_vector(q,e), Vec2::Zero());
+
+   // mass_slackliner / mass_total -> to get slackliners share of force
+   double fac = (m_(node_slackliner_) - line_.node_mass(node_slackliner_)) / m_(node_slackliner_);
+
+   return fac*(f2(1) - f1(1));
 }
 
 

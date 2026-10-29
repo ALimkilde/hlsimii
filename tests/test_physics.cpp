@@ -701,6 +701,57 @@ void test_place_slackliner()
     CHECK(F == F_bare);
 }
 
+// Without a slackliner there is no leash to carry a force
+void test_max_leash_tension_no_slackliner()
+{
+    const Zigzag z = zigzag();
+    const LineModel m(five_edge_line(), z.left, z.right, Params{});
+    CHECK(m.max_leash_tension(z.q) == 0.0);
+}
+
+// In static equilibrium the leash carries exactly the slackliner's weight, whatever the node mass
+void test_max_leash_tension_static()
+{
+    Params p;
+    p.gravity = Vec2(0.0, -10.0);
+    const LineModel m(five_edge_line(), {0.0, 0.0}, {5.5, 0.0}, p);   // rest length 5.0: pretensioned
+    const double mass = 80.0;
+
+    for (int i = 0; i < 4; ++i) {
+        Vec q = m.static_solver_initial_guess();
+        m.place_slackliner(i, mass);
+        CHECK(m.static_solver(q, 1e-10));
+        const double T = m.max_leash_tension(as_const_mat2x(q));
+        if (std::abs(T - mass * 10.0) > 1e-6 * mass * 10.0)
+            std::cerr << "  slackliner on node " << i << ": leash " << T << " N, weight " << mass * 10.0 << " N\n";
+        CHECK(std::abs(T - mass * 10.0) <= 1e-6 * mass * 10.0);
+    }
+    m.remove_slackliner();
+}
+
+// Out of equilibrium the node and slackliner share one acceleration a = F / M, so Newton's
+// second law for the slackliner alone gives the leash force m_s * (a - g). The zigzag is far
+// from equilibrium and at rest, so damping and drag are off and F is spring forces plus gravity.
+void test_max_leash_tension_accelerating()
+{
+    const Zigzag z = zigzag();
+    Params p;
+    p.gravity = Vec2(0.0, -10.0);
+    const LineModel m(five_edge_line(), z.left, z.right, p);
+    const double mass = 80.0;
+
+    for (int i = 0; i < 4; ++i) {
+        m.place_slackliner(i, mass);
+        const Vec2 a = m.node_force(z.q, at_rest(z.q), i) / m.get_mass(i);
+        const double expected = mass * (a.y() - p.gravity.y());
+        const double T = m.max_leash_tension(z.q);
+        if (std::abs(T - expected) > 1e-9 * std::max(1.0, std::abs(expected)))
+            std::cerr << "  slackliner on node " << i << ": leash " << T << " N, expected " << expected << " N\n";
+        CHECK(std::abs(T - expected) <= 1e-9 * std::max(1.0, std::abs(expected)));
+    }
+    m.remove_slackliner();
+}
+
 // Packs positions and velocities into the ODE state y = [x0 y0 x1 y1 ... | vx0 vy0 vx1 vy1 ...]
 Vec pack_state(const Mat2X& q, const Mat2X& v)
 {
@@ -1061,6 +1112,9 @@ int main()
     test_residual();
     test_both_neighboring_edges_slack();
     test_place_slackliner();
+    test_max_leash_tension_no_slackliner();
+    test_max_leash_tension_static();
+    test_max_leash_tension_accelerating();
     test_rhs_layout();
     test_rhs_free_fall();
     test_rhs_static_equilibrium();
