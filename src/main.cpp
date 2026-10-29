@@ -138,16 +138,19 @@ int main(int argc, char** argv)
         SimConfig cfg = parse_config(read_file(config_path));
         const WebbingCatalog webbings = parse_webbings(read_file(webbings_path));
 
-        if (!cfg.pull_webbing) {
-            std::cout << "Standing tension " << *cfg.tension_kN
-                      << " kN (tension solve not implemented yet)\n";
-            return 0;
-        }
-
         const Line line = build_line(cfg, webbings);
-        const double pull = *cfg.pull_webbing;
-        const Line pulled = cfg.pull_side == "left" ? pull_webbing(line, pull, 0.0)
-                                                    : pull_webbing(line, 0.0, pull);
+        const bool pull_right = cfg.pull_side == "right";
+        Line pulled = line;
+        if (cfg.pull_webbing) {
+            const double pull = *cfg.pull_webbing;
+            pulled = pull_right ? pull_webbing(line, 0.0, pull) : pull_webbing(line, pull, 0.0);
+        } else {
+            pulled = Experiments::pull_to_tension(cfg, line, *cfg.tension_kN * 1000.0, pull_right);
+            const Segment& before = pull_right ? line.segments().back() : line.segments().front();
+            const Segment& after = pull_right ? pulled.segments().back() : pulled.segments().front();
+            std::cout << "Standing tension " << *cfg.tension_kN << " kN: pulled "
+                      << before.L_main - after.L_main << " m on the " << cfg.pull_side << "\n";
+        }
         DiscreteLine dline = discretize(pulled, elements_per_segment(pulled, cfg.L / (cfg.N - 1)));
 
         const double dt_out = 1.0 / 60.0;   // frame rate of the written animation

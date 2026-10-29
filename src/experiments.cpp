@@ -3,6 +3,7 @@
 #include "mesh.h"
 #include <iostream>
 #include <algorithm>
+#include <stdexcept>
 
 // TODO Refactor and clean these codes!
 static Vec getEmptyLine(const LineModel& model, const SimConfig& cfg) {
@@ -11,6 +12,14 @@ static Vec getEmptyLine(const LineModel& model, const SimConfig& cfg) {
    if (!model.static_solver(q0, tol))
       std::cerr << "warning: unloaded static solver did not converge\n";
    return q0;
+}
+
+// Max tension [N] of the unloaded line after pulling `pull` [m] of webbing at one anchor
+static double unloadedMaxTension(const SimConfig& cfg, const Line& line, const double pull, const bool pull_right) {
+   const Line pulled = pull_right ? pull_webbing(line, 0.0, pull) : pull_webbing(line, pull, 0.0);
+   const DiscreteLine dline = discretize(pulled, elements_per_segment(pulled, cfg.L / (cfg.N - 1)));
+   const LineModel model(dline, Vec2(0.0, 0.0), Vec2(cfg.L, 0.0), Params{});
+   return model.max_tension_flat(getEmptyLine(model, cfg));
 }
 
 static Vec getInitialPosition(LineModel& model, const SimConfig& cfg, Eigen::Index& node_slackliner) {
@@ -53,16 +62,12 @@ static SimData simulateFall(const SimConfig& cfg, const DiscreteLine& start_line
  }
 
 SimData Experiments::simulateLeashFall(const SimConfig& cfg, const DiscreteLine& dline, const double t_end, const double dt_out, SolverType solvertype, const double atol, const double rtol) {
-
    return simulateFall(cfg, dline, dline, t_end, dt_out, solvertype, atol, rtol);
-
  }
 
 SimData Experiments::simulateBackupFall(const SimConfig& cfg, const DiscreteLine& dline, const double t_end, const double dt_out, const std::vector<bool>& break_segments, SolverType solvertype, const double atol, const double rtol) {
-
    assert(anyBreak(break_segments));
    return simulateFall(cfg, dline, with_broken_mainline(dline, break_segments), t_end, dt_out, solvertype, atol, rtol);
-
  }
 
 Vec Experiments::energy_solve(const SimConfig& cfg, const DiscreteLine& dline, const std::vector<bool>& break_segments) {
@@ -89,4 +94,33 @@ Vec Experiments::energy_solve(const SimConfig& cfg, const DiscreteLine& dline, c
       std::cerr << "warning: loaded static solver energy did not converge\n";
 
    return q;
+}
+  
+Line Experiments::pull_to_tension(const SimConfig& cfg, const Line& line, const double tension, const bool pull_right) {
+   const Segment& end = pull_right ? line.segments().back() : line.segments().front();
+
+   // Tension increases with pull. pull_webbing can't pull a whole end segment
+   const double max_pull = (1.0 - 1e-6) * end.L_main;
+
+   if (unloadedMaxTension(cfg, line, 0.0, pull_right) >= tension)
+      return line;
+
+   // Bracket by doubling from a small pull, so the static solves stay at realistic pulls
+   double lo = 0.0;
+   double hi = std::min(0.1, max_pull);
+   while (unloadedMaxTension(cfg, line, hi, pull_right) < tension) {
+      if (hi == max_pull)
+         throw std::invalid_argument("pull_to_tension: tension not reachable by pulling the end segment");
+      lo = hi;
+      hi = std::min(2.0 * hi, max_pull);
+   }
+
+   const double pull_tol = 1e-6; // [m]
+   for (int it = 0; it < 100 && hi - lo > pull_tol; ++it) {
+      const double mid = 0.5 * (lo + hi);
+      if (unloadedMaxTension(cfg, line, mid, pull_right) < tension) lo = mid;
+      else hi = mid;
+   }
+
+   return pull_right ? pull_webbing(line, 0.0, hi) : pull_webbing(line, hi, 0.0);
 }

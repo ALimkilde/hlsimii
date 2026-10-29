@@ -557,3 +557,22 @@ double LineModel::kinetic_energy(CRef<Mat2X> v) const
 {
    return 0.5 * m_.dot(v.colwise().squaredNorm());
 }
+
+double LineModel::max_tension_flat(const Vec& q_flat) const {
+   Vec v_flat = Vec::Zero(q_flat.size()); // Zero velocity to avoid dampening
+
+   CRef<Mat2X> q = as_const_mat2x(q_flat);
+   CRef<Mat2X> v = as_const_mat2x(v_flat);
+
+   double max_tension = 0;
+
+   for (Eigen::Index e = 0; e < num_edges(); e++) {
+      // TODO; switch this for calling edge_tension(e, len)
+      double T = edge_force(e, edge_vector(q,e), Vec2::Zero()).norm();
+      if (T > max_tension) max_tension = T;
+   }
+
+   return max_tension;
+}
+
+

@@ -38,4 +38,5 @@ private:
 
 // Pulls webbing out of the span at the anchors [m of main]. The backup is pulled
 // proportionally, keeping each end segment's backup/main ratio. Other segments are untouched.
-Line pull_webbing(const Line& line, double pull_left, double pull_right);
+Line pull_webbing(const Line& line, const double pull_left, const double pull_right);
+

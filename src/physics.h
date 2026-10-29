@@ -113,6 +113,8 @@ class LineModel {
       double get_mass(const int i) const {
          return m_[i];
       }
+
+      double max_tension_flat(const Vec& q) const;
  
       double gravitational_energy(CRef<Mat2X> q) const;
       double gravitational_energy_flat(const Vec& q_flat) const;

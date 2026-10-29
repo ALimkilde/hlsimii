@@ -47,7 +47,7 @@ void shorten(Segment& s, double pull)
 
 } // namespace
 
-Line pull_webbing(const Line& line, double pull_left, double pull_right)
+Line pull_webbing(const Line& line, const double pull_left, const double pull_right)
 {
     if (line.segments().empty())
         throw std::invalid_argument("pull_webbing: line has no segments");

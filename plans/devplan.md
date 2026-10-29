@@ -32,7 +32,7 @@
 - [X] Use the same force calculation as the dynamic model.
 - [X] Verify solutions physically.
 - [X] Add slackliner to static equations
-- [ ] Add pull_to_tension functionality <------ TODO
+- [X] Add pull_to_tension functionality
 
 ## 4. Spring Jacobian
 
