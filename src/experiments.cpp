@@ -4,6 +4,7 @@
 #include <iostream>
 #include <algorithm>
 
+// TODO Refactor and clean these codes!
 
 FallResults Experiments::simulate(const SimConfig& cfg, const DiscreteLine& dline, const double t_end, const double dt_out, const std::vector<bool>& break_segments, SolverType solvertype, const double atol, const double rtol) {
 
@@ -46,3 +47,36 @@ FallResults Experiments::simulate(const SimConfig& cfg, const DiscreteLine& dlin
 
    return fallresults;
  }
+
+Vec Experiments::energy_solve(const SimConfig& cfg, const DiscreteLine& dline, const std::vector<bool>& break_segments) {
+
+   const Vec2 anchor_left(0.0, 0.0), anchor_right(cfg.L, 0.0);
+   const Params params{};
+
+   LineModel InitModel(dline, anchor_left, anchor_right, params);
+
+   const double tol = Params{}.newton_tol;
+   Vec q = InitModel.static_solver_initial_guess();
+   if (!InitModel.static_solver(q, tol))
+      std::cerr << "warning: unloaded static solver did not converge\n";
+
+   Eigen::Index node_slackliner = InitModel.nearest_node(q, cfg.slackliner.x_coor);
+   InitModel.place_slackliner(node_slackliner, cfg.slackliner.m);
+   if (!InitModel.static_solver(q, tol))
+      std::cerr << "warning: loaded static solver did not converge\n";
+
+   const double g = 9.81; // TODO; put 9.82 somewhere sensible
+                          //
+   const bool any_break = std::find(break_segments.begin(), break_segments.end(), true) != break_segments.end();
+   LineModel model(any_break? with_broken_mainline(dline, break_segments) : dline, anchor_left, anchor_right, params);
+   model.place_slackliner(node_slackliner, cfg.slackliner.m);
+
+   const double energy_goal = model.gravitational_energy_flat(q) + model.elastic_energy_flat(q) + cfg.slackliner.m * g * (cfg.slackliner.l_leg + cfg.slackliner.l_leash) ;
+
+   q = model.static_solver_initial_guess();
+   model.static_solver(q, tol);
+   if (!model.static_solver_energy(q, tol, energy_goal))
+      std::cerr << "warning: loaded static solver energy did not converge\n";
+
+   return q;
+}

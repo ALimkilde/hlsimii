@@ -25,10 +25,16 @@ Mat BlockTriMat::to_dense() const {
    return out;
 }
 
+//TODO; Rename to dense solve to avoid confusion
 // Dense reference solve of A x = b via Eigen's LU. O(n^3); for development only.
 void BlockTriMat::solve(Eigen::Ref<Vec> x, Eigen::Ref<const Vec> b) const
 {
-   x = to_dense().partialPivLu().solve(b);
+   x = solve(b);
+}
+
+Vec BlockTriMat::solve(Eigen::Ref<const Vec> b) const {
+   return to_dense().partialPivLu().solve(b);
+
 }
 
 void BlockTriMat::setZero() 
@@ -110,6 +116,13 @@ void BlockTriLU::solve(Ref<Vec> x, CRef<Vec> b) const
    for (int i = num_blocks_-2; i >= 0; i--) {
       x.segment<2>(2*i) = d[i] - U[i]*x.segment<2>(2*(i+1));
    }
+}
+
+Vec BlockTriLU::solve(CRef<Vec> b) const 
+{
+   Vec x(b.size());
+   solve(x, b);
+   return x;
 }
 
 static void rodasReducedSystem(const BlockTriMat& Kq, const BlockTriMat& Kv, const double fac, BlockTriMat& out) 

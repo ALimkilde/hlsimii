@@ -77,10 +77,14 @@ class LineModel {
       void rhs(double t, CRef<Vec> z, Ref<Vec> dz, BlockTriMat* Kq = nullptr, BlockTriMat* Kv = nullptr) const;  // Out facing API
       void rhs(CRef<Mat2X> q, CRef<Mat2X> v, Ref<Mat2X> dq, Ref<Mat2X> dv, BlockTriMat* Kq = nullptr, BlockTriMat* Kv = nullptr) const;  // Internal implementation
                                 
-      // === Static Solves === //
+      // === Static solves === //
       void residual(const Vec& q_flat, Vec& r_flat, BlockTriMat* jac = nullptr) const;
-      bool static_solver(Vec& q_flat, double tol) const;
+      bool static_solver(Vec& q_flat, const double tol) const;
       Vec static_solver_initial_guess() const;
+
+      // === Static solves for falls === //
+      bool static_solver_energy(Vec& q_flat, const double tol, const double energy) const;
+      void residual_energy(const Vec& q_flat, Vec& r_flat, Mat& jac, const double Egoal) const;
 
       bool both_neighboring_edges_slack_flat(const Vec& q) const;
       bool both_neighboring_edges_slack(CRef<Mat2X> q) const;
@@ -111,7 +115,9 @@ class LineModel {
       }
  
       double gravitational_energy(CRef<Mat2X> q) const;
+      double gravitational_energy_flat(const Vec& q_flat) const;
       double elastic_energy(CRef<Mat2X> q) const;
+      double elastic_energy_flat(const Vec& q_flat) const;
       double kinetic_energy(CRef<Mat2X> v) const;
 
       int num_nodes() const { return line_.num_nodes(); }
@@ -130,6 +136,10 @@ class LineModel {
 
       mutable Vec m_, minv_;        // node masses and inverses
       std::vector<double> drag_coefs_;
+
+      // Templated newton solver
+      template<class ResidualFn, class Jac, class JacLU>
+      bool newton_solver(Vec& q_flat, Jac& jac, JacLU& lu, ResidualFn&&, const double tol) const;
 
       // Compile-time versions with and without Jacobians (public functions dispatch on nullptr), defined in physics.cpp
       template<bool WithKq, bool WithKv> Vec2 edge_force_impl(Eigen::Index e, const EdgeGeometry& geom, const Vec2& dv, Mat2* Kq, Mat2* Kv) const;

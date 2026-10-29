@@ -136,7 +136,7 @@
 - [-] Reuse all temporary vectors and matrices.
 - [X] Benchmark alternative small-matrix implementations.
 - [X] Keep automated correctness tests alongside performance tests.
-- [ ] Profile for really large N and different lines
+- [X] Profile for really large N and different lines
 
 ## 14. Found optimization
 
@@ -163,10 +163,16 @@
 
 ## 16. Energy calculation
 
-- [ ] Make 'static' energy solver for lower point of fall (assume f = 0 for all other nodes, fx = 0 for slackliner node, and Ep_old + Ee_old = Ep_new + Ee_new)
-- [ ] Test the solver
+- [X] Make 'static' energy solver for lower point of fall (assume f = 0 for all other nodes, fx = 0 for slackliner node, and Ep_old + Ee_old = Ep_new + Ee_new)
+- [X] Test the solver
+- [ ] Modify to shift in x-direction
 - [ ] Make solver with mass lumped in the middle.
 - [ ] Test against ISA - should give exactly the same!
+- [ ] Reformulate the energy solver with the leash force P as the unknown (fixes the singular start: the energy row of the Jacobian is 0 at static equilibrium)
+   - Inner: static solve with an extra downward force P on the slackliner's node (reuses static_solver and the block-tridiagonal LU)
+   - Outer: solve the scalar equation E(q(P)) - E_goal = 0 with bisection or secant
+   - P >= 0 picks the lower of the two solutions; P is the peak leash force
+   - To figure out: how to pass the external force to the static solver, whether E(P) is monotonic, how to bracket P
 
 ## 16. WASM
 

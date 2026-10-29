@@ -12,4 +12,6 @@ struct FallResults {
 namespace Experiments {
    FallResults simulate(const SimConfig& cfg, const DiscreteLine& dline, const double t_end, const double dt_out, const std::vector<bool>& break_segments, SolverType solvertype, const double atol, const double rtol);
 
+   Vec energy_solve(const SimConfig& cfg, const DiscreteLine& dline, const std::vector<bool>& break_segments);
+
 }

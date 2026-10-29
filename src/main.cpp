@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -88,6 +89,18 @@ void print_summary(const std::string& label, const SimData& data)
               << "  solver steps         " << data.n_accepts << " accepted, " << data.n_rejects << " rejected\n";
 }
 
+// Static estimate of the bottom of a fall, labelled like print_summary so the two can be compared.
+// The lowest node is the slackliner's node; the harness hangs a leash length below it.
+void print_energy_summary(const std::string& label, const Vec& q_flat, double l_leash)
+{
+    const Mat2X q = as_const_mat2x(q_flat);
+    Eigen::Index lowest;
+    const double y_lowest = q.row(1).minCoeff(&lowest);
+    std::cout << label << " (energy balance, static)\n"
+              << "  lowest webbing       " << y_lowest << " m at x = " << q(0, lowest) << " m\n"
+              << "  lowest slackliner    " << y_lowest - l_leash << " m\n";
+}
+
 SolverType parse_solver(const std::string& name)
 {
     if (name == "rk45") return SolverType::RungeKutta45;
@@ -141,6 +154,11 @@ int main(int argc, char** argv)
         const double atol = 1e-7, rtol = 1e-3;
         std::vector<bool> break_segments;
         for (const SegmentConfig& seg : cfg.segments) break_segments.push_back(seg.break_mainline);
+
+        const std::vector<bool> no_breaks(break_segments.size(), false);
+        print_energy_summary("Leash fall", Experiments::energy_solve(cfg, dline, no_breaks), cfg.slackliner.l_leash);
+        if (std::find(break_segments.begin(), break_segments.end(), true) != break_segments.end())
+            print_energy_summary("Backup fall", Experiments::energy_solve(cfg, dline, break_segments), cfg.slackliner.l_leash);
 
         const FallResults results = Experiments::simulate(cfg, dline, cfg.T, dt_out, break_segments, solvertype, atol, rtol);
 

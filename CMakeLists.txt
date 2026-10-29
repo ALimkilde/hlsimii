@@ -44,6 +44,10 @@ add_executable(test_fall_simulator tests/test_fall_simulator.cpp)
 target_link_libraries(test_fall_simulator PRIVATE hlsim_core)
 add_test(NAME fall_simulator COMMAND test_fall_simulator)
 
+add_executable(test_experiments tests/test_experiments.cpp)
+target_link_libraries(test_experiments PRIVATE hlsim_core)
+add_test(NAME experiments COMMAND test_experiments)
+
 # rk45.h is header-only, so the test only needs Eigen
 add_executable(test_rk45 tests/test_rk45.cpp)
 target_include_directories(test_rk45 PRIVATE src)

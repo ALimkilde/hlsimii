@@ -46,7 +46,9 @@ class BlockTriMat {
       // Create zeroed matrix
       explicit BlockTriMat(const int num_blocks);
 
+      // TODO ; maybe delete this to always use TriLU?
       void solve(Eigen::Ref<Vec> x, Eigen::Ref<const Vec> b) const;
+      Vec solve(Eigen::Ref<const Vec> b) const;
 
       void setZero();
 
@@ -82,6 +84,7 @@ class BlockTriLU {
       void compute(const BlockTriMat& A);
 
       void solve(Ref<Vec> x, CRef<Vec> b) const;
+      Vec solve(CRef<Vec> b) const;
    private:
       int num_blocks_;
       std::vector<Mat2> D, U, L; // D holds inverse matrices after factorization
