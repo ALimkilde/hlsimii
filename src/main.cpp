@@ -155,28 +155,30 @@ int main(int argc, char** argv)
         std::vector<bool> break_segments;
         for (const SegmentConfig& seg : cfg.segments) break_segments.push_back(seg.break_mainline);
 
+        const bool has_backup_fall = Experiments::anyBreak(break_segments);
+
         const std::vector<bool> no_breaks(break_segments.size(), false);
         print_energy_summary("Leash fall", Experiments::energy_solve(cfg, dline, no_breaks), cfg.slackliner.l_leash);
-        if (std::find(break_segments.begin(), break_segments.end(), true) != break_segments.end())
+        if (has_backup_fall)
             print_energy_summary("Backup fall", Experiments::energy_solve(cfg, dline, break_segments), cfg.slackliner.l_leash);
 
-        const FallResults results = Experiments::simulate(cfg, dline, cfg.T, dt_out, break_segments, solvertype, atol, rtol);
-
-        // Must match the anchors used in Experiments::simulate
+        // Must match the anchors used in simulateFall (experiments.cpp)
         const Vec2 anchor_left(0.0, 0.0), anchor_right(cfg.L, 0.0);
         const double l_leash = cfg.slackliner.l_leash;
 
-        print_summary("Leash fall", results.leash);
-        write_fall_line_csv("fall_line.csv", results.leash, anchor_left, anchor_right);
-        write_fall_slackliner_csv("fall_slackliner.csv", results.leash, l_leash);
-        write_fall_energy_csv("fall_energy.csv", results.leash);
+        const SimData leash = Experiments::simulateLeashFall(cfg, dline, cfg.T, dt_out, solvertype, atol, rtol);
+        print_summary("Leash fall", leash);
+        write_fall_line_csv("fall_line.csv", leash, anchor_left, anchor_right);
+        write_fall_slackliner_csv("fall_slackliner.csv", leash, l_leash);
+        write_fall_energy_csv("fall_energy.csv", leash);
         std::cout << "Wrote fall_line.csv, fall_slackliner.csv and fall_energy.csv\n";
 
-        if (results.has_backup_fall) {
-            print_summary("Backup fall", results.backup);
-            write_fall_line_csv("fall_line_backup.csv", results.backup, anchor_left, anchor_right);
-            write_fall_slackliner_csv("fall_slackliner_backup.csv", results.backup, l_leash);
-            write_fall_energy_csv("fall_energy_backup.csv", results.backup);
+        if (has_backup_fall) {
+            const SimData backup = Experiments::simulateBackupFall(cfg, dline, cfg.T, dt_out, break_segments, solvertype, atol, rtol);
+            print_summary("Backup fall", backup);
+            write_fall_line_csv("fall_line_backup.csv", backup, anchor_left, anchor_right);
+            write_fall_slackliner_csv("fall_slackliner_backup.csv", backup, l_leash);
+            write_fall_energy_csv("fall_energy_backup.csv", backup);
             std::cout << "Wrote fall_line_backup.csv, fall_slackliner_backup.csv and fall_energy_backup.csv\n";
         } else {
             // Remove the files of an earlier run so the animation doesn't show a stale backup fall

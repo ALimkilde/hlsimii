@@ -54,17 +54,18 @@ int main()
     bool all_agree = true;
 
     for (const std::string& name : regression::cases) {
-        const auto rk = regression::falls_of(name, regression::run_case(name, SolverType::RungeKutta45, golden_tol));
-        const auto ro = regression::falls_of(name, regression::run_case(name, SolverType::Rosenbrock43, golden_tol));
+        const auto rk = regression::run_case(name, SolverType::RungeKutta45, golden_tol);
+        const auto ro = regression::run_case(name, SolverType::Rosenbrock43, golden_tol);
 
         for (size_t k = 0; k < rk.size(); ++k) {
-            std::cout << rk[k].first << ": normalized RMS rk45 vs rodas4\n";
-            if (compare(rk[k].second, ro[k].second) > agreement_threshold) {
+            const regression::Trace rk_trace = regression::trace_of(rk[k].data);
+            std::cout << rk[k].name << ": normalized RMS rk45 vs rodas4\n";
+            if (compare(rk_trace, regression::trace_of(ro[k].data)) > agreement_threshold) {
                 std::cout << "    DISAGREE, golden not written\n";
                 all_agree = false;
                 continue;
             }
-            write_trace(out_dir + rk[k].first + ".csv", rk[k].second);
+            write_trace(out_dir + rk[k].name + ".csv", rk_trace);
         }
     }
     return all_agree ? 0 : 1;

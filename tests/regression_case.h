@@ -38,8 +38,14 @@ inline std::string read_file(const std::string& path)
     return ss.str();
 }
 
+// One simulated fall, named for the golden file: <case>_leash.csv, <case>_backup.csv
+struct Fall {
+    std::string name;
+    SimData data;
+};
+
 // Mirrors the line setup in main.cpp; tol is used as both atol and rtol
-inline FallResults run_case(const std::string& name, SolverType solver, double tol)
+inline std::vector<Fall> run_case(const std::string& name, SolverType solver, double tol)
 {
     const SimConfig cfg = parse_config(read_file(data_dir + name + ".yaml"));
     const WebbingCatalog webbings = parse_webbings(read_file(data_dir + "webbings.yaml"));
@@ -52,7 +58,10 @@ inline FallResults run_case(const std::string& name, SolverType solver, double t
     std::vector<bool> break_segments;
     for (const SegmentConfig& seg : cfg.segments) break_segments.push_back(seg.break_mainline);
 
-    return Experiments::simulate(cfg, dline, cfg.T, dt_out, break_segments, solver, tol, tol);
+    std::vector<Fall> falls = {{name + "_leash", Experiments::simulateLeashFall(cfg, dline, cfg.T, dt_out, solver, tol, tol)}};
+    if (Experiments::anyBreak(break_segments))
+        falls.push_back({name + "_backup", Experiments::simulateBackupFall(cfg, dline, cfg.T, dt_out, break_segments, solver, tol, tol)});
+    return falls;
 }
 
 // The slackliner and energy traces; the same quantities as fall_slackliner.csv and fall_energy.csv
@@ -67,14 +76,6 @@ inline Trace trace_of(const SimData& data)
         for (size_t c = 0; c < tr.size(); ++c) tr[c].values.push_back(row[c]);
     }
     return tr;
-}
-
-// The falls a case produces, named for the golden file: <case>_leash.csv, <case>_backup.csv
-inline std::vector<std::pair<std::string, Trace>> falls_of(const std::string& name, const FallResults& r)
-{
-    std::vector<std::pair<std::string, Trace>> falls = {{name + "_leash", trace_of(r.leash)}};
-    if (r.has_backup_fall) falls.push_back({name + "_backup", trace_of(r.backup)});
-    return falls;
 }
 
 // sqrt(mean((a - ref)^2)) / sqrt(mean(ref^2)): unit free, so one threshold fits metres and joules

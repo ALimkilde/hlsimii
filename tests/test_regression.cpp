@@ -86,15 +86,14 @@ int main()
             const char* solver_name = solver == SolverType::RungeKutta45 ? "rk45" : "rodas4";
 
             const auto start = std::chrono::steady_clock::now();
-            const FallResults r = regression::run_case(name, solver, test_tol);
+            const std::vector<regression::Fall> falls = regression::run_case(name, solver, test_tol);
             const double seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
 
             // The time covers the whole case (both falls), so it is printed on the first row only
             bool first = true;
-            for (const auto& [fall, trace] : regression::falls_of(name, r)) {
-                const SimData& data = first ? r.leash : r.backup;
+            for (const auto& [fall, data] : falls) {
                 const regression::Trace golden = read_csv(regression::data_dir + "golden/" + fall + ".csv");
-                const Worst worst = check_against_golden(fall, golden, trace, solver_name);
+                const Worst worst = check_against_golden(fall, golden, regression::trace_of(data), solver_name);
                 std::printf("%-24s %-7s %8s %9d %9d  %.1e (%s)\n", fall.c_str(), solver_name,
                             first ? std::to_string(seconds).substr(0, 5).c_str() : "",
                             data.n_accepts, data.n_rejects, worst.rms, worst.column.c_str());
