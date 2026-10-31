@@ -3,7 +3,6 @@
 #include <fstream>
 #include <iostream>
 #include <iomanip>
-#include <limits>
 #include <optional>
 #include <sstream>
 #include <stdexcept>
@@ -28,25 +27,18 @@ std::string read_file(const std::string& path)
 }
 
 // One row per node per frame, anchors included (node -1 and num_nodes).
-// Fx, Fy is the net force on the node; nan for the anchors, which are fixed.
 void write_fall_line_csv(const std::string& path, const SimData& data, Vec2 anchor_left, Vec2 anchor_right)
 {
     std::ofstream out(path);
     if (!out) throw std::runtime_error("cannot write " + path);
 
-    const Vec2 no_force = Vec2::Constant(std::numeric_limits<double>::quiet_NaN());
-
-    out << "t,node,x,y,Fx,Fy\n";
+    out << "t,node,x,y\n";
     for (size_t f = 0; f < data.time.size(); ++f) {
-        const Mat2X& q = data.position[f];
-        const Mat2X& F = data.net_forces[f];
+        const Eigen::Map<const Mat2X> q = data.frame(f);
         const Eigen::Index num_nodes = q.cols();
         for (Eigen::Index i = -1; i <= num_nodes; ++i) {
-            const bool anchor = (i == -1 || i == num_nodes);
             const Vec2 p = (i == -1) ? anchor_left : (i == num_nodes) ? anchor_right : Vec2(q.col(i));
-            const Vec2 force = anchor ? no_force : Vec2(F.col(i));
-            out << data.time[f] << "," << i << "," << p.x() << "," << p.y() << ","
-                << force.x() << "," << force.y() << "\n";
+            out << data.time[f] << "," << i << "," << p.x() << "," << p.y() << "\n";
         }
     }
 }
@@ -60,7 +52,7 @@ void write_fall_slackliner_csv(const std::string& path, const SimData& data, dou
 
     out << "t,x_ring,y_ring,y_harness,taut\n";
     for (size_t f = 0; f < data.time.size(); ++f) {
-        const Vec2 ring = data.position[f].col(data.node_slackliner);
+        const Vec2 ring = data.frame(f).col(data.node_slackliner);
         const double y_harness = data.y_slackliner[f];
         const bool taut = ring.y() - y_harness >= l_leash * (1.0 - 1e-9);
         out << data.time[f] << "," << ring.x() << "," << ring.y() << "," << y_harness << "," << taut << "\n";

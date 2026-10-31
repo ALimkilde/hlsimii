@@ -20,11 +20,15 @@ struct SimData {
 
    // Frames at the output times: line state and slackliner (harness) height
    Eigen::Index node_slackliner = -1;
+   Eigen::Index num_nodes = 0;
    std::vector<double> time;
-   std::vector<Mat2X> position;
-   std::vector<Mat2X> velocities;
-   std::vector<Mat2X> net_forces;
+   std::vector<double> positions;
    std::vector<double> y_slackliner;
+
+   // Node positions of frame f as a 2 x num_nodes view into positions (no copy)
+   Eigen::Map<const Mat2X> frame(size_t f) const {
+      return Eigen::Map<const Mat2X>(positions.data() + f * 2 * num_nodes, 2, num_nodes);
+   }
 
    int n_accepts = 0;
    int n_rejects = 0;
@@ -43,7 +47,7 @@ class FallSimulator {
 
       // ====== Logging ====== 
       // Called once per output time.
-      bool on_output(const double t, CRef<Vec> z, SimData& data, const bool attached) const;
+      bool on_output(const double t, CRef<Vec> z, SimData& data) const;
       // Called once per time step
       bool on_step(const double t, CRef<Vec> z, SimData& data) const;
 

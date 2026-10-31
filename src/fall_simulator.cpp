@@ -17,7 +17,7 @@ FallSimulator::FallSimulator(const LineModel& linemodel, const SlacklinerConfig&
 SimData FallSimulator::simulate(const double tend, const double dt_out, CRef<Mat2X> q0, CRef<Mat2X> v0, const double atol, const double rtol)
 {
   // Initialize
-  SimData data;
+  SimData data{};
   bool attached = false;
 
   // Slackliner leaves the line: the line starts at rest in the loaded shape,
@@ -34,12 +34,13 @@ SimData FallSimulator::simulate(const double tend, const double dt_out, CRef<Mat
   state.v = v0;
 
   data.node_slackliner = node_slackliner_;
+  data.num_nodes = q0.cols();
 
   ProgressBar bar;
 
   auto rhs    = [&](double t, CRef<Vec> z, Ref<Vec> dz) { linemodel_.rhs(t, z, dz); };
   auto rhsjac    = [&](double t, CRef<Vec> z, Ref<Vec> dz, Jac jacobian) { linemodel_.rhs(t, z, dz, &jacobian.Kq, &jacobian.Kv); };
-  auto output_obs = [&](double t, CRef<Vec> z) { bar.update((t - t0) / (tend - t0)); return on_output(t, z, data, attached); };
+  auto output_obs = [&](double t, CRef<Vec> z) { bar.update((t - t0) / (tend - t0)); return on_output(t, z, data); };
   auto step_obs   = [&](double t, CRef<Vec> z) { return on_step(t, z, data); };
   auto events = [&](double t, CRef<Vec> z, Ref<Vec> g) {
      g[0] = attached ? event_leash_loose_flat(t, z) : event_leash_taut_flat(t, z);
@@ -49,7 +50,7 @@ SimData FallSimulator::simulate(const double tend, const double dt_out, CRef<Mat
   bool reason_was_event;
 
   // Record the initial state here
-  on_output(t, z, data, attached);
+  on_output(t, z, data);
 
   while (t < tend) {
      if (solvertype_ == SolverType::RungeKutta45) {
@@ -86,17 +87,15 @@ SimData FallSimulator::simulate(const double tend, const double dt_out, CRef<Mat
   return data;
 }
 
-bool FallSimulator::on_output(const double t, CRef<Vec> z, SimData& data, const bool attached) const
+bool FallSimulator::on_output(const double t, CRef<Vec> z, SimData& data) const
 {
+
+   on_step(t, z, data);
+
    ConstStateView s = const_state_view(z);
 
    data.time.push_back(t);
-   data.position.emplace_back(s.q);
-   data.velocities.emplace_back(s.v);
-
-   Mat2X F(2, s.q.cols());
-   linemodel_.assemble(s.q, s.v, F);
-   data.net_forces.emplace_back(F);
+   data.positions.insert(data.positions.end(), s.q.data(), s.q.data() + s.q.size());
 
    data.y_slackliner.push_back(y_slackliner(t, s.q));
 
