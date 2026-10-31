@@ -33,7 +33,8 @@ static Vec getEmptyLine(const LineModel& model) {
 static double unloadedMaxTension(const SimConfig& cfg, const Line& line, const double pull, const bool pull_right) {
    const Line pulled = pull_right ? pull_webbing(line, 0.0, pull) : pull_webbing(line, pull, 0.0);
    const DiscreteLine dline = discretize(pulled, elements_per_segment(pulled, cfg.L / (cfg.N - 1)));
-   const LineModel model(dline, Vec2(0.0, 0.0), Vec2(cfg.L, 0.0), Params{});
+   const Anchors anchors(cfg);
+   const LineModel model(dline, anchors.left, anchors.right, Params{});
    return model.max_tension_flat(getEmptyLine(model));
 }
 
@@ -52,10 +53,10 @@ bool Experiments::anyBreak(const std::vector<bool>& break_segments) {
 
 static ExperimentOutput simulateFall(const SimConfig& cfg, const DiscreteLine& start_line, const DiscreteLine& fall_line, const double t_end, const double dt_out, SolverType solvertype, const double atol, const double rtol) {
 
-   const Vec2 anchor_left(0.0, 0.0), anchor_right(cfg.L, 0.0);
+   const Anchors anchors(cfg);
    const Params params = getParams(cfg);
 
-   LineModel start_model(start_line, anchor_left, anchor_right, params);
+   LineModel start_model(start_line, anchors.left, anchors.right, params);
 
    Vec q_empty = getEmptyLine(start_model);
    StaticData empty_data(start_model, q_empty);
@@ -65,7 +66,7 @@ static ExperimentOutput simulateFall(const SimConfig& cfg, const DiscreteLine& s
    Vec q_walking = getStaticPosition(q_empty, start_model);
    StaticData walking_data(start_model, q_walking);
 
-   LineModel fall_model(fall_line, anchor_left, anchor_right, params);
+   LineModel fall_model(fall_line, anchors.left, anchors.right, params);
 
    FallSimulator fallsim(fall_model, cfg.slackliner, node_slackliner, solvertype);
 
@@ -78,7 +79,7 @@ static ExperimentOutput simulateFall(const SimConfig& cfg, const DiscreteLine& s
    Vec q_settled = getStaticPosition(dynamics.lastFrame(), fall_model);
    StaticData settled_data(fall_model, q_settled);
 
-   return {std::move(dynamics), empty_data, walking_data, settled_data};
+   return {std::move(dynamics), empty_data, walking_data, settled_data, anchors};
  }
 
 ExperimentOutput Experiments::simulateLeashFall(const SimConfig& cfg, const DiscreteLine& dline, const double t_end, const double dt_out, SolverType solvertype, const double atol, const double rtol) {
@@ -92,10 +93,10 @@ ExperimentOutput Experiments::simulateBackupFall(const SimConfig& cfg, const Dis
 
 Vec Experiments::energy_solve(const SimConfig& cfg, const DiscreteLine& dline, const std::vector<bool>& break_segments) {
 
-   const Vec2 anchor_left(0.0, 0.0), anchor_right(cfg.L, 0.0);
+   const Anchors anchors(cfg);
    const Params params{};
 
-   LineModel init_model(dline, anchor_left, anchor_right, params);
+   LineModel init_model(dline, anchors.left, anchors.right, params);
 
    Vec q = getEmptyLine(init_model);
    Eigen::Index node_slackliner = placeSlackliner(q, init_model, cfg);
@@ -103,7 +104,7 @@ Vec Experiments::energy_solve(const SimConfig& cfg, const DiscreteLine& dline, c
 
    const double g = 9.81; // TODO; put 9.82 somewhere sensible
                           //
-   LineModel model(anyBreak(break_segments)? with_broken_mainline(dline, break_segments) : dline, anchor_left, anchor_right, params);
+   LineModel model(anyBreak(break_segments)? with_broken_mainline(dline, break_segments) : dline, anchors.left, anchors.right, params);
    model.place_slackliner(node_slackliner, cfg.slackliner.m);
 
    const double energy_goal = model.gravitational_energy_flat(q) + model.elastic_energy_flat(q) + cfg.slackliner.m * g * (cfg.slackliner.l_leg + cfg.slackliner.l_leash) ;

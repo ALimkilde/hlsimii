@@ -38,6 +38,8 @@ struct SimConfig {
     std::string pull_side = "right";    // anchor side to pull from: "left" or "right"
     SlacklinerConfig slackliner;
     std::vector<SegmentConfig> segments;
+    double anchor_height_left = 0.0;
+    double anchor_height_right = 0.0;
 };
 
 using WebbingCatalog = std::map<std::string, Webbing>;

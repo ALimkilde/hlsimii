@@ -73,6 +73,8 @@ void test_webbings()
     CHECK(close(w.at("stretchy").stretch_pct, 10.0));
     CHECK(close(w.at("stiff").tension_kN, 10.0));
     CHECK(close(w.at("stiff").weight_g_m, 40.0));
+    CHECK(close(w.at("stiff").width, 0.025));      // width_mm left out: default
+    CHECK(close(w.at("stretchy").width, 0.035));   // width_mm: 35, converted to m
 }
 
 void test_fixtures()
@@ -188,6 +190,20 @@ void test_physics_scales()
     CHECK(throws([] { parse_config(replace(base_config, "T: 1", "T: 1\ndrag_scale: big")); }));
 }
 
+void test_anchor_heights()
+{
+    const SimConfig level = parse_config(base_config);
+    CHECK(close(level.anchor_height_left, 0.0) && close(level.anchor_height_right, 0.0));
+
+    // Either anchor may be set on its own, and heights below zero are allowed
+    const SimConfig uneven = parse_config(
+        replace(base_config, "T: 1", "T: 1\nanchor_height_left: 3.5\nanchor_height_right: -2"));
+    CHECK(close(uneven.anchor_height_left, 3.5));
+    CHECK(close(uneven.anchor_height_right, -2.0));
+
+    CHECK(throws([] { parse_config(replace(base_config, "T: 1", "T: 1\nanchor_height_left: high")); }));
+}
+
 void test_yaml_errors()
 {
     parse_config(base_config);
@@ -204,6 +220,8 @@ void test_yaml_errors()
     CHECK(throws([] { parse_config(replace(base_config, "L_main: 10", "L_mian: 10")); }));
     CHECK(throws([] { parse_config(""); }));
     CHECK(throws([] { parse_webbings("joker: {stretch_pct: 3.6, tension_kN: 5}"); }));
+    CHECK(throws([] { parse_webbings("joker: {stretch_pct: 3.6, tension_kN: 5, weight_g_m: 54, width_mm: -1}"); }));
+    CHECK(throws([] { parse_webbings("joker: {stretch_pct: 3.6, tension_kN: 5, weight_g_m: 54, width_mm: wide}"); }));
 }
 
 } // namespace
@@ -216,6 +234,7 @@ int main()
     test_build_line();
     test_validate();
     test_physics_scales();
+    test_anchor_heights();
     test_yaml_errors();
 
     if (failures > 0) {

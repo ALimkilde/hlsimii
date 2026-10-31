@@ -27,8 +27,11 @@ std::string read_file(const std::string& path)
 }
 
 // One row per node per frame, anchors included (node -1 and num_nodes).
-void write_fall_line_csv(const std::string& path, const SimData& data, Vec2 anchor_left, Vec2 anchor_right)
+void write_fall_line_csv(const std::string& path, const ExperimentOutput& output)
 {
+    const SimData& data = output.dynamics;
+    const Anchors& anchors = output.anchors;
+
     std::ofstream out(path);
     if (!out) throw std::runtime_error("cannot write " + path);
 
@@ -37,7 +40,7 @@ void write_fall_line_csv(const std::string& path, const SimData& data, Vec2 anch
         const Eigen::Map<const Mat2X> q = as_const_mat2x(data.frame(f));
         const Eigen::Index num_nodes = q.cols();
         for (Eigen::Index i = -1; i <= num_nodes; ++i) {
-            const Vec2 p = (i == -1) ? anchor_left : (i == num_nodes) ? anchor_right : Vec2(q.col(i));
+            const Vec2 p = (i == -1) ? anchors.left : (i == num_nodes) ? anchors.right : Vec2(q.col(i));
             out << data.time[f] << "," << i << "," << p.x() << "," << p.y() << "\n";
         }
     }
@@ -151,15 +154,13 @@ int main(int argc, char** argv)
 
         const bool has_backup_fall = Experiments::anyBreak(break_segments);
 
-        // Must match the anchors used in simulateFall (experiments.cpp)
-        const Vec2 anchor_left(0.0, 0.0), anchor_right(cfg.L, 0.0);
         const double l_leash = cfg.slackliner.l_leash;
 
         // The falls draw progress bars, so run everything before printing the table
         const std::vector<bool> no_breaks(break_segments.size(), false);
         const ExperimentOutput leash = Experiments::simulateLeashFall(cfg, dline, cfg.T, dt_out, solvertype, atol, rtol);
         const Vec q_energy_leash = Experiments::energy_solve(cfg, dline, no_breaks);
-        write_fall_line_csv("fall_line.csv", leash.dynamics, anchor_left, anchor_right);
+        write_fall_line_csv("fall_line.csv", leash);
         write_fall_slackliner_csv("fall_slackliner.csv", leash.dynamics, l_leash);
 
         std::optional<ExperimentOutput> backup;
@@ -167,7 +168,7 @@ int main(int argc, char** argv)
         if (has_backup_fall) {
             backup = Experiments::simulateBackupFall(cfg, dline, cfg.T, dt_out, break_segments, solvertype, atol, rtol);
             q_energy_backup = Experiments::energy_solve(cfg, dline, break_segments);
-            write_fall_line_csv("fall_line_backup.csv", backup->dynamics, anchor_left, anchor_right);
+            write_fall_line_csv("fall_line_backup.csv", *backup);
             write_fall_slackliner_csv("fall_slackliner_backup.csv", backup->dynamics, l_leash);
         } else {
             // Remove the files of an earlier run so the animation doesn't show a stale backup fall

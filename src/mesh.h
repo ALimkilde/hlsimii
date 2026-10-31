@@ -13,7 +13,9 @@ struct DiscreteLine {
     std::vector<double> l_main;    // rest length of the main line [m], size E
     std::vector<double> l_backup;  // rest length of the backup [m], size E
     std::vector<int> element_segment; // segment id of each element, size E
-                                      //
+    std::vector<double> main_width;  // Width of main line webbing
+    std::vector<double> backup_width;  // Width of backup line webbing
+
     Vec node_mass; // lumped mass of the free nodes [kg], size E-1
 
     int num_elements() const;

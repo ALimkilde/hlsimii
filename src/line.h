@@ -3,9 +3,10 @@
 #include <vector>
 
 struct Webbing {
-    double stretch_pct; // Stretch percentage at the tension
-    double tension_kN;  // The tension for which the stretch is given in [kN]
-    double weight_g_m;  // Weight in [g/m]
+    double stretch_pct;   // Stretch percentage at the tension
+    double tension_kN;    // The tension for which the stretch is given in [kN]
+    double weight_g_m;    // Weight in [g/m]
+    double width = 0.025; // width in [m]
 
     double rho() const; // Linear density [kg/m]
     double ea() const;  // Axial stiffness EA [N]
@@ -20,6 +21,8 @@ struct Segment {
    double rho_backup; // linear density [kg/m]
    double L_main;
    double L_backup;
+   double main_width;
+   double backup_width;
 
    double mass() const; // [kg]
 };

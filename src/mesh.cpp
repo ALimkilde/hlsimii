@@ -41,6 +41,8 @@ DiscreteLine discretize(const Line& line, const std::vector<int>& n_per_segment)
     d.l_main.reserve(num_el);
     d.l_backup.reserve(num_el);
     d.element_segment.reserve(num_el);
+    d.main_width.reserve(num_el);
+    d.backup_width.reserve(num_el);
 
     // Lumped mass on all nodes 0..E, anchors included
    Vec lumped = Vec::Zero(num_el + 1);
@@ -59,6 +61,8 @@ DiscreteLine discretize(const Line& line, const std::vector<int>& n_per_segment)
             d.l_main.push_back(l_main);
             d.l_backup.push_back(l_backup);
             d.element_segment.push_back(static_cast<int>(s));
+            d.main_width.push_back(seg.main_width);
+            d.backup_width.push_back(seg.backup_width);
 
             // Lump half of the element mass on each of its end nodes
             lumped(e) += 0.5 * m;

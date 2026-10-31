@@ -28,15 +28,20 @@ bool close(const Vec2& a, const Vec2& b) { return (a - b).norm() <= 1e-9 * std::
 const Vec2 dv_rest = Vec2::Zero();
 Mat2X at_rest(const Mat2X& q) { return Mat2X::Zero(2, q.cols()); }
 
+// Webbing width [m] of the test lines; it only matters for drag
+const double default_width = 0.025;
+
 // Three edges, main rest length 1.0 and backup rest length 1.2.
 // The main stiffness differs per edge, so a mixed-up edge index gives a wrong force.
-DiscreteLine three_edge_line()
+DiscreteLine three_edge_line(double width = default_width)
 {
     DiscreteLine d;
     d.k_main = {100.0, 200.0, 300.0};
     d.k_backup = {50.0, 50.0, 50.0};
     d.l_main = {1.0, 1.0, 1.0};
     d.l_backup = {1.2, 1.2, 1.2};
+    d.main_width.assign(3, width);
+    d.backup_width.assign(3, width);
     d.node_mass = Vec::Constant(2, 1.0);
     d.element_segment = {0, 0, 0};
     return d;
@@ -359,13 +364,15 @@ void test_assemble()
 
 // Five edges with distinct stiffnesses and distinct node masses, so a shifted edge or mass index
 // changes the result. Rest lengths: main 1.0, backup 1.2.
-DiscreteLine five_edge_line()
+DiscreteLine five_edge_line(double width = default_width)
 {
     DiscreteLine d;
     d.k_main = {100.0, 200.0, 300.0, 400.0, 500.0};
     d.k_backup = {50.0, 60.0, 70.0, 80.0, 90.0};
     d.l_main = {1.0, 1.0, 1.0, 1.0, 1.0};
     d.l_backup = {1.2, 1.2, 1.2, 1.2, 1.2};
+    d.main_width.assign(5, width);
+    d.backup_width.assign(5, width);
     d.node_mass = (Vec(4) << 1.1, 1.3, 1.7, 1.9).finished();
     d.element_segment = {0, 0, 0, 0, 0};
     return d;
@@ -480,10 +487,10 @@ Mat2X zigzag_velocities(const LineModel& m, const Zigzag& z)
 
 // Finite-difference check of both assembled Jacobians, Kq = dF/dq and Kv = dF/dv, on the zigzag
 // with damping on (and drag, if p has it), using zigzag_velocities.
-void check_assemble_jacobians(const Params& p, const char* name)
+void check_assemble_jacobians(const Params& p, const char* name, double width = default_width)
 {
     const Zigzag z = zigzag();
-    const LineModel m(five_edge_line(), z.left, z.right, p);
+    const LineModel m(five_edge_line(width), z.left, z.right, p);
     const Eigen::Index n = z.q.size();
 
     const Mat2X v = zigzag_velocities(m, z);
@@ -543,8 +550,7 @@ void test_assemble_jacobian_damped()
     // Drag on node a depends on its own velocity and on dq = q_b - q_a, so it fills diag(a)
     // and upper(a) of Kq but only diag(a) of Kv (and likewise for node b)
     p.c_drag = 1.15;
-    p.webbing_width = 1.0;
-    check_assemble_jacobians(p, "damping + drag");
+    check_assemble_jacobians(p, "damping + drag", 1.0);
 }
 
 // With every edge slack the only force is gravity, so node i feels m_{i+1} * g.
@@ -581,6 +587,8 @@ void test_assemble_single_node()
     d.k_backup = {50.0, 50.0};
     d.l_main = {1.0, 1.0};
     d.l_backup = {1.2, 1.2};
+    d.main_width.assign(2, default_width);
+    d.backup_width.assign(2, default_width);
     d.node_mass = Vec::Constant(1, 1.0);
     d.element_segment = {0, 0};
 
@@ -906,10 +914,9 @@ void test_rhs_jacobian()
     Params p;
     p.tau_KV = 0.1;
     p.c_drag = 1.15;
-    p.webbing_width = 1.0;   // wide webbing: drag terms as large as the damping terms
 
     const Zigzag z = zigzag();
-    const LineModel m(five_edge_line(), z.left, z.right, p);
+    const LineModel m(five_edge_line(1.0), z.left, z.right, p);   // wide webbing: drag terms as large as the damping terms
 
     check_rhs_jacobian(m, z, "no slackliner");
 
@@ -919,22 +926,36 @@ void test_rhs_jacobian()
 }
 
 // Round drag parameters and no gravity, so the drag forces below can be checked by hand.
-// For three_edge_line, every edge has c = 0.5 * rho * C_d * w * (l_main + l_backup) = 0.5 * 0.1 * 2.2 = 0.11.
-// edge_drag returns the share of one end node, i.e. with c/2 = 0.055.
+// For three_edge_line(drag_width), every edge has c = 0.5 * rho * C_d * w * (l_main + l_backup)
+// = 0.5 * 0.1 * 2.2 = 0.11. edge_drag returns the share of one end node, i.e. with c/2 = 0.055.
+const double drag_width = 0.1;
+
 Params drag_params()
 {
     Params p;
     p.gravity.setZero();
     p.rho_air = 1.0;
     p.c_drag = 1.0;
-    p.webbing_width = 0.1;
     return p;
+}
+
+// Main and backup each catch the wind on their own width: c = 0.5 * rho * C_d * (w_m l_m + w_b l_b).
+// Widths 0.1 and 0.2 give 0.5 * (0.1 * 1.0 + 0.2 * 1.2) = 0.17; swapping them would give 0.16.
+void test_edge_drag_widths()
+{
+    DiscreteLine d = three_edge_line();
+    d.main_width.assign(3, 0.1);
+    d.backup_width.assign(3, 0.2);
+    const LineModel m(d, {0.0, 0.0}, {3.0, 0.0}, drag_params());
+
+    // Horizontal edge moving down at 2 m/s: (c/2) * 2 * 2 = 0.34 upwards
+    CHECK(close(m.edge_drag(0, {1.0, 0.0}, {0.0, -2.0}), Vec2(0.0, 0.34)));
 }
 
 // edge_drag(e, dq, v) = -(c/2) |v_perp| v_perp, where v_perp is the part of v normal to the edge
 void test_edge_drag()
 {
-    const LineModel m(three_edge_line(), {0.0, 0.0}, {3.0, 0.0}, drag_params());
+    const LineModel m(three_edge_line(drag_width), {0.0, 0.0}, {3.0, 0.0}, drag_params());
 
     // Horizontal edge moving down at 2 m/s: (c/2) * 2 * 2 = 0.22 upwards
     CHECK(close(m.edge_drag(0, {1.0, 0.0}, {0.0, -2.0}), Vec2(0.0, 0.22)));
@@ -953,7 +974,7 @@ void test_edge_drag()
 // Each Jacobian is also requested on its own, and must come out the same as when both are requested.
 void test_edge_drag_jacobian()
 {
-    const LineModel m(three_edge_line(), {0.0, 0.0}, {3.0, 0.0}, drag_params());
+    const LineModel m(three_edge_line(drag_width), {0.0, 0.0}, {3.0, 0.0}, drag_params());
     const Vec2 u(0.6, 0.8), u_perp(-0.8, 0.6);
     const Vec2 dq = 1.5 * u;
     const double nan = std::numeric_limits<double>::quiet_NaN();
@@ -1010,7 +1031,7 @@ void test_assemble_drag_terminal_velocity()
 {
     Params p = drag_params();
     p.gravity = Vec2(0.0, -10.0);
-    const LineModel m(three_edge_line(), {0.0, 0.0}, {3.0, 0.0}, p);
+    const LineModel m(three_edge_line(drag_width), {0.0, 0.0}, {3.0, 0.0}, p);
 
     Mat2X q(2, 2);
     q << 1.0, 2.0,
@@ -1044,6 +1065,8 @@ DiscreteLine uniform_line(int N)
     d.k_backup.assign(N, 50.0);
     d.l_main.assign(N, 3.0 / N);
     d.l_backup.assign(N, 3.6 / N);
+    d.main_width.assign(N, drag_width);
+    d.backup_width.assign(N, drag_width);
     d.node_mass = Vec::Constant(N - 1, 1.0);
     d.element_segment.assign(N, 0);
     return d;
@@ -1120,6 +1143,7 @@ int main()
     test_rhs_static_equilibrium();
     test_rhs_jacobian();
     test_edge_drag();
+    test_edge_drag_widths();
     test_edge_drag_jacobian();
     test_assemble_drag_terminal_velocity();
     test_drag_mesh_refinement();

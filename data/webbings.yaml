@@ -1,16 +1,17 @@
-# Webbing catalogue. Fields match Webbing in slackline_physics.py:
+# Webbing catalogue. 
 #   stretch_pct  stretch at tension_kN [%]
 #   tension_kN   tension the stretch is measured at [kN]
 #   weight_g_m   weight [g/m]
+#   width_mm     webbing width [mm], optional (default 25), only used for air drag
 pinktube: {stretch_pct: 15.4, tension_kN: 5, weight_g_m: 54}
 joker:    {stretch_pct: 3.6,  tension_kN: 5, weight_g_m: 54}
-solid:    {stretch_pct: 2.5,  tension_kN: 5, weight_g_m: 50}
+solid:    {stretch_pct: 2.5,  tension_kN: 5, weight_g_m: 50, width_mm: 20}
 y2k:      {stretch_pct: 1.0,  tension_kN: 5, weight_g_m: 33}
 joker_kgs: {stretch_pct: 3.6,  tension_kN: 5, weight_g_m: 10000}
 joker_5g: {stretch_pct: 3.6,  tension_kN: 5, weight_g_m: 5}
-solid_5g: {stretch_pct: 2.5,  tension_kN: 5, weight_g_m: 5}
+solid_5g: {stretch_pct: 2.5,  tension_kN: 5, weight_g_m: 5, width_mm: 20}
 
-# As used in the 2024 ISA backup fall experiment (see compare/compare_experiment.py).
+# As used in the 2024 ISA backup fall experiment 
 # pinktube above already carries that paper's values.
 nylove:   {stretch_pct: 7.8,  tension_kN: 5,  weight_g_m: 62}
 hmpe:     {stretch_pct: 3.0,  tension_kN: 10, weight_g_m: 40}

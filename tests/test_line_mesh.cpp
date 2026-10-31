@@ -44,16 +44,27 @@ double total_mass(const Line& line)
 bool same_segment(const Segment& a, const Segment& b)
 {
     return a.L_main == b.L_main && a.L_backup == b.L_backup && a.ea_main == b.ea_main &&
-           a.ea_backup == b.ea_backup && a.rho_main == b.rho_main && a.rho_backup == b.rho_backup;
+           a.ea_backup == b.ea_backup && a.rho_main == b.rho_main && a.rho_backup == b.rho_backup &&
+           a.main_width == b.main_width && a.backup_width == b.backup_width;
 }
 
-const Webbing w1{5.0, 10.0, 50.0};
-const Webbing w2{8.0, 10.0, 30.0};
+const Webbing w1{5.0, 10.0, 50.0, 0.025};
+const Webbing w2{8.0, 10.0, 30.0, 0.035};   // different width, so a main/backup mix-up shows
 
 // Segments with different backup/main ratios
 Line three_segment_line()
 {
     return Line({Segment(w1, w2, 10.0, 12.0), Segment(w1, w1, 0.4, 0.6), Segment(w2, w1, 7.3, 8.0)});
+}
+
+// Each segment takes its widths from its own main and backup webbing
+void test_segment_widths()
+{
+    const Segment s(w1, w2, 10.0, 12.0);
+    CHECK(s.main_width == w1.width);
+    CHECK(s.backup_width == w2.width);
+    const Webbing no_width{5.0, 10.0, 50.0};
+    CHECK(no_width.width == 0.025);   // default when the width is left out
 }
 
 void test_pull_webbing()
@@ -120,6 +131,8 @@ void test_discretize()
     CHECK(static_cast<int>(d.l_main.size()) == num_el);
     CHECK(static_cast<int>(d.l_backup.size()) == num_el);
     CHECK(static_cast<int>(d.element_segment.size()) == num_el);
+    CHECK(static_cast<int>(d.main_width.size()) == num_el);
+    CHECK(static_cast<int>(d.backup_width.size()) == num_el);
 
     double node_mass_sum = 0.0;
     for (double m : d.node_mass) node_mass_sum += m;
@@ -132,6 +145,8 @@ void test_discretize()
         for (int e = 0; e < d.num_elements(); ++e) {
             if (d.element_segment[e] != s) continue;
             ++count;
+            CHECK(d.main_width[e] == seg.main_width);
+            CHECK(d.backup_width[e] == seg.backup_width);
             lm += d.l_main[e];
             lb += d.l_backup[e];
             compliance_main += 1.0 / d.k_main[e];
@@ -205,6 +220,7 @@ int main()
 {
     test_pull_webbing();
     test_elements_per_segment();
+    test_segment_widths();
     test_discretize();
     test_discretize_anchor_mass();
     test_with_broken_mainline();

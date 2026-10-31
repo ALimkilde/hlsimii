@@ -36,7 +36,6 @@ struct Params {
    Vec2 gravity = constants::gravity;
    double tau_KV = 0.23;
    double c_drag = 1.15; 
-   double webbing_width = 0.025; 
    double rho_air = 1.225; // Density of air
    double newton_tol = 1e-5;
    // Drag and dampening parameters

@@ -19,7 +19,8 @@ LineModel::LineModel(const DiscreteLine& line,
 {
    for (int e = 0; e < line_.num_elements(); e++) {
       // 0.25; 0.5 from drag expression, 0.5 as the contribution to a node is half the edge worth of drag
-      drag_coefs_[e] = 0.25 * params_.rho_air * params_.c_drag * params_.webbing_width * (line_.l_main[e] + line_.l_backup[e]);
+      drag_coefs_[e] = 0.25 * params_.rho_air * params_.c_drag  * 
+         (line_.main_width[e] * line_.l_main[e] + line_.backup_width[e] * line_.l_backup[e]);
    }
 }
 

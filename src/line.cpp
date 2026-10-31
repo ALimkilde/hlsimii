@@ -17,7 +17,9 @@ Segment::Segment(Webbing webbing_main, Webbing webbing_backup, double l_main, do
       rho_main(webbing_main.rho()),
       rho_backup(webbing_backup.rho()),
       L_main(l_main),
-      L_backup(l_backup)
+      L_backup(l_backup),
+      main_width(webbing_main.width),
+      backup_width(webbing_backup.width)
 {
 }
 

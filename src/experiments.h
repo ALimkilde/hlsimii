@@ -16,11 +16,19 @@ struct StaticData {
    double sag;
 };
 
+struct Anchors {
+   explicit Anchors(const SimConfig& cfg): left(0.0, cfg.anchor_height_left), right(cfg.L, cfg.anchor_height_right) {}
+
+   Vec2 left;
+   Vec2 right;
+};
+
 struct ExperimentOutput {
    SimData dynamics;
    StaticData empty_line; // Static solution for empty line
    StaticData walking_line; // Static solution for walking line
    StaticData settled_line; // Static solution for settled line
+   Anchors anchors;
 };
 
 namespace Experiments {

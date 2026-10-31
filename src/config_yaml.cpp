@@ -279,9 +279,15 @@ WebbingCatalog parse_webbings(const std::string& yaml_text)
     WebbingCatalog webbings;
     for (const auto& [name, n] : root.map) {
         expect_kind(n, Node::Kind::Map, "webbing '" + name + "'");
-        check_keys(n, {"stretch_pct", "tension_kN", "weight_g_m"}, name);
-        webbings[name] = Webbing{get_double(n, "stretch_pct", name), get_double(n, "tension_kN", name),
-                                 get_double(n, "weight_g_m", name)};
+        check_keys(n, {"stretch_pct", "tension_kN", "weight_g_m", "width_mm"}, name);
+        Webbing w{get_double(n, "stretch_pct", name), get_double(n, "tension_kN", name),
+                  get_double(n, "weight_g_m", name)};
+        if (const Node* wn = find(n, "width_mm")) {
+            const double width_mm = to_double(*wn, "width_mm");
+            if (width_mm < 0.0) throw std::invalid_argument("webbing '" + name + "': width_mm must be >= 0");
+            w.width = width_mm / 1000.0;
+        }
+        webbings[name] = w;
     }
     return webbings;
 }
@@ -292,7 +298,8 @@ SimConfig parse_config(const std::string& yaml_text)
     expect_kind(root, Node::Kind::Map, "config");
     check_keys(root,
                {"plots", "gif", "L", "N", "T", "tension_kN", "pull_webbing", "pull_side",
-                "kv_scale", "drag_scale", "slackliner", "segments"},
+                "kv_scale", "drag_scale", "anchor_height_left", "anchor_height_right",
+                "slackliner", "segments"},
                "config");
 
     SimConfig cfg;
@@ -306,6 +313,8 @@ SimConfig parse_config(const std::string& yaml_text)
     if (const Node* n = find(root, "pull_side")) cfg.pull_side = to_string(*n, "pull_side");
     if (const Node* n = find(root, "kv_scale")) cfg.kv_scale = to_double(*n, "kv_scale");
     if (const Node* n = find(root, "drag_scale")) cfg.drag_scale = to_double(*n, "drag_scale");
+    if (const Node* n = find(root, "anchor_height_left")) cfg.anchor_height_left = to_double(*n, "anchor_height_left");
+    if (const Node* n = find(root, "anchor_height_right")) cfg.anchor_height_right = to_double(*n, "anchor_height_right");
     cfg.slackliner = parse_slackliner(require(root, "slackliner", "config"));
 
     const Node& segments = require(root, "segments", "config");
