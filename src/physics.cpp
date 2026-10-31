@@ -558,12 +558,10 @@ double LineModel::kinetic_energy(CRef<Mat2X> v) const
    return 0.5 * m_.dot(v.colwise().squaredNorm());
 }
 
-double LineModel::max_tension_flat(const Vec& q_flat) const {
-
+double LineModel::max_tension_flat(const Vec& q_flat) const 
+{
    CRef<Mat2X> q = as_const_mat2x(q_flat);
-
    return max_tension(q);
-
 }
 
 double LineModel::max_tension(CRef<Mat2X> q) const {
@@ -578,6 +576,38 @@ double LineModel::max_tension(CRef<Mat2X> q) const {
 
    return max_tension;
 }
+
+AnchorTension LineModel::anchor_tension_flat(const Vec& q_flat) const {
+
+   CRef<Mat2X> q = as_const_mat2x(q_flat);
+
+   return anchor_tension(q);
+
+}
+
+AnchorTension LineModel::anchor_tension(CRef<Mat2X> q) const {
+
+   AnchorTension out{};
+
+   out.left = edge_force(0, edge_vector(q,0), Vec2::Zero()).norm();
+
+   Eigen::Index e_right = num_edges() - 1;
+   out.right = edge_force(e_right, edge_vector(q,e_right), Vec2::Zero()).norm();
+
+   return out;
+}
+
+double LineModel::sag_flat(const Vec& q_flat) const 
+{
+   CRef<Mat2X> q = as_const_mat2x(q_flat);
+   return sag(q);
+}
+
+double LineModel::sag(CRef<Mat2X> q) const 
+{
+   return q.row(1).minCoeff();
+}
+
 
 double LineModel::max_leash_tension(CRef<Mat2X> q) const {
 

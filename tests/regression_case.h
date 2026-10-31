@@ -58,9 +58,9 @@ inline std::vector<Fall> run_case(const std::string& name, SolverType solver, do
     std::vector<bool> break_segments;
     for (const SegmentConfig& seg : cfg.segments) break_segments.push_back(seg.break_mainline);
 
-    std::vector<Fall> falls = {{name + "_leash", Experiments::simulateLeashFall(cfg, dline, cfg.T, dt_out, solver, tol, tol)}};
+    std::vector<Fall> falls = {{name + "_leash", Experiments::simulateLeashFall(cfg, dline, cfg.T, dt_out, solver, tol, tol).dynamics}};
     if (Experiments::anyBreak(break_segments))
-        falls.push_back({name + "_backup", Experiments::simulateBackupFall(cfg, dline, cfg.T, dt_out, break_segments, solver, tol, tol)});
+        falls.push_back({name + "_backup", Experiments::simulateBackupFall(cfg, dline, cfg.T, dt_out, break_segments, solver, tol, tol).dynamics});
     return falls;
 }
 

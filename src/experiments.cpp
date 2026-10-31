@@ -5,13 +5,18 @@
 #include <algorithm>
 #include <stdexcept>
 
-// TODO Refactor and clean these codes!
-static Vec getEmptyLine(const LineModel& model, const SimConfig& cfg) {
+static Vec getStaticPosition(Vec q0, const LineModel& model) {
+   
    const double tol = Params{}.newton_tol;
-   Vec q0 = model.static_solver_initial_guess();
    if (!model.static_solver(q0, tol))
-      std::cerr << "warning: unloaded static solver did not converge\n";
+      std::cerr << "warning: loaded static solver did not converge\n";
+
    return q0;
+}
+
+static Vec getEmptyLine(const LineModel& model) {
+   Vec q0 = model.static_solver_initial_guess();
+   return getStaticPosition(q0, model);
 }
 
 // Max tension [N] of the unloaded line after pulling `pull` [m] of webbing at one anchor
@@ -19,66 +24,73 @@ static double unloadedMaxTension(const SimConfig& cfg, const Line& line, const d
    const Line pulled = pull_right ? pull_webbing(line, 0.0, pull) : pull_webbing(line, pull, 0.0);
    const DiscreteLine dline = discretize(pulled, elements_per_segment(pulled, cfg.L / (cfg.N - 1)));
    const LineModel model(dline, Vec2(0.0, 0.0), Vec2(cfg.L, 0.0), Params{});
-   return model.max_tension_flat(getEmptyLine(model, cfg));
+   return model.max_tension_flat(getEmptyLine(model));
 }
 
-static Vec getInitialPosition(LineModel& model, const SimConfig& cfg, Eigen::Index& node_slackliner) {
-   
-   // Get initial state
-   // TODO; Move newton tol
-   const double tol = Params{}.newton_tol;
-   Vec q0 = getEmptyLine(model, cfg);
-   
-   node_slackliner = model.nearest_node(q0, cfg.slackliner.x_coor);
+Eigen::Index placeSlackliner(Vec q0, LineModel& model, const SimConfig& cfg) 
+{
+   Eigen::Index node_slackliner = model.nearest_node(q0, cfg.slackliner.x_coor);
    model.place_slackliner(node_slackliner, cfg.slackliner.m);
-   if (!model.static_solver(q0, tol))
-      std::cerr << "warning: loaded static solver did not converge\n";
+   
+   return node_slackliner;
 
-   return q0;
 }
 
 bool Experiments::anyBreak(const std::vector<bool>& break_segments) {
    return std::find(break_segments.begin(), break_segments.end(), true) != break_segments.end();
 }
 
-static SimData simulateFall(const SimConfig& cfg, const DiscreteLine& start_line, const DiscreteLine& fall_line, const double t_end, const double dt_out, SolverType solvertype, const double atol, const double rtol) {
+static ExperimentOutput simulateFall(const SimConfig& cfg, const DiscreteLine& start_line, const DiscreteLine& fall_line, const double t_end, const double dt_out, SolverType solvertype, const double atol, const double rtol) {
 
-   Eigen::Index node_slackliner;
    const Vec2 anchor_left(0.0, 0.0), anchor_right(cfg.L, 0.0);
    const Params params{};
 
    LineModel start_model(start_line, anchor_left, anchor_right, params);
 
-   Vec q0 = getInitialPosition(start_model, cfg, node_slackliner);
+   Vec q_empty = getEmptyLine(start_model);
+   StaticData empty_data(start_model, q_empty);
+
+   Eigen::Index node_slackliner = placeSlackliner(q_empty, start_model, cfg);
+
+   Vec q_walking = getStaticPosition(q_empty, start_model);
+   StaticData walking_data(start_model, q_walking);
 
    LineModel fall_model(fall_line, anchor_left, anchor_right, params);
 
    FallSimulator fallsim(fall_model, cfg.slackliner, node_slackliner, solvertype);
 
-   Vec v0(q0.size());
+   Vec v0(q_walking.size());
    v0.setZero();
 
-   return fallsim.simulate(t_end, dt_out, as_const_mat2x(q0), as_const_mat2x(v0), atol, rtol);
+   SimData dynamics = fallsim.simulate(t_end, dt_out, as_const_mat2x(q_walking), as_const_mat2x(v0), atol, rtol);
+
+   fall_model.place_slackliner(node_slackliner, cfg.slackliner.m);
+   // TODO let q_walking be end of dynamics
+   Vec q_settled = getStaticPosition(q_walking, fall_model);
+   StaticData settled_data(fall_model, q_settled);
+
+   return {std::move(dynamics), empty_data, walking_data, settled_data};
  }
 
-SimData Experiments::simulateLeashFall(const SimConfig& cfg, const DiscreteLine& dline, const double t_end, const double dt_out, SolverType solvertype, const double atol, const double rtol) {
+ExperimentOutput Experiments::simulateLeashFall(const SimConfig& cfg, const DiscreteLine& dline, const double t_end, const double dt_out, SolverType solvertype, const double atol, const double rtol) {
    return simulateFall(cfg, dline, dline, t_end, dt_out, solvertype, atol, rtol);
  }
 
-SimData Experiments::simulateBackupFall(const SimConfig& cfg, const DiscreteLine& dline, const double t_end, const double dt_out, const std::vector<bool>& break_segments, SolverType solvertype, const double atol, const double rtol) {
+ExperimentOutput Experiments::simulateBackupFall(const SimConfig& cfg, const DiscreteLine& dline, const double t_end, const double dt_out, const std::vector<bool>& break_segments, SolverType solvertype, const double atol, const double rtol) {
    assert(anyBreak(break_segments));
    return simulateFall(cfg, dline, with_broken_mainline(dline, break_segments), t_end, dt_out, solvertype, atol, rtol);
  }
 
 Vec Experiments::energy_solve(const SimConfig& cfg, const DiscreteLine& dline, const std::vector<bool>& break_segments) {
 
-   Eigen::Index node_slackliner;
    const Vec2 anchor_left(0.0, 0.0), anchor_right(cfg.L, 0.0);
    const Params params{};
 
    LineModel init_model(dline, anchor_left, anchor_right, params);
 
-   Vec q = getInitialPosition(init_model, cfg, node_slackliner);
+   Vec q = getEmptyLine(init_model);
+   Eigen::Index node_slackliner = placeSlackliner(q, init_model, cfg);
+   q = getStaticPosition(q, init_model);
 
    const double g = 9.81; // TODO; put 9.82 somewhere sensible
                           //

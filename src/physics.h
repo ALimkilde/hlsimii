@@ -65,6 +65,11 @@ struct EdgeGeometry {
    }
 };
 
+struct AnchorTension {
+   double left;
+   double right;
+};
+
 class LineModel {
   public:
       explicit LineModel(const DiscreteLine& line, 
@@ -116,7 +121,14 @@ class LineModel {
 
       double max_tension_flat(const Vec& q) const;
       double max_tension(CRef<Mat2X> q) const;
+
       double max_leash_tension(CRef<Mat2X> q) const;
+
+      AnchorTension anchor_tension_flat(const Vec& q_flat) const;
+      AnchorTension anchor_tension(CRef<Mat2X> q) const;
+
+      double sag_flat(const Vec& q_flat) const;
+      double sag(CRef<Mat2X> q) const;
  
       double gravitational_energy(CRef<Mat2X> q) const;
       double gravitational_energy_flat(const Vec& q_flat) const;
