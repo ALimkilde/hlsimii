@@ -26,8 +26,12 @@ struct SimData {
    std::vector<double> y_slackliner;
 
    // Node positions of frame f as a 2 x num_nodes view into positions (no copy)
-   Eigen::Map<const Mat2X> frame(size_t f) const {
-      return Eigen::Map<const Mat2X>(positions.data() + f * 2 * num_nodes, 2, num_nodes);
+   Eigen::Map<const Vec> frame(size_t f) const {
+      return Eigen::Map<const Vec>(positions.data() + f * 2 * num_nodes, 2 * num_nodes);
+   }
+
+   Eigen::Map<const Vec> lastFrame() const {
+      return frame(time.size()-1);
    }
 
    int n_accepts = 0;

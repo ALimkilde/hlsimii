@@ -69,7 +69,7 @@ inline Trace trace_of(const SimData& data)
 {
     Trace tr = {{"t", {}}, {"x_ring", {}}, {"y_ring", {}}, {"y_harness", {}}};
     for (size_t f = 0; f < data.time.size(); ++f) {
-        const auto ring = data.frame(f).col(data.node_slackliner);
+        const auto ring = as_const_mat2x(data.frame(f)).col(data.node_slackliner);
         const double row[] = {data.time[f], ring.x(), ring.y(), data.y_slackliner[f]};
         for (size_t c = 0; c < tr.size(); ++c) tr[c].values.push_back(row[c]);
     }

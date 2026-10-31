@@ -34,7 +34,7 @@ void write_fall_line_csv(const std::string& path, const SimData& data, Vec2 anch
 
     out << "t,node,x,y\n";
     for (size_t f = 0; f < data.time.size(); ++f) {
-        const Eigen::Map<const Mat2X> q = data.frame(f);
+        const Eigen::Map<const Mat2X> q = as_const_mat2x(data.frame(f));
         const Eigen::Index num_nodes = q.cols();
         for (Eigen::Index i = -1; i <= num_nodes; ++i) {
             const Vec2 p = (i == -1) ? anchor_left : (i == num_nodes) ? anchor_right : Vec2(q.col(i));
@@ -52,7 +52,7 @@ void write_fall_slackliner_csv(const std::string& path, const SimData& data, dou
 
     out << "t,x_ring,y_ring,y_harness,taut\n";
     for (size_t f = 0; f < data.time.size(); ++f) {
-        const Vec2 ring = data.frame(f).col(data.node_slackliner);
+        const Vec2 ring = as_const_mat2x(data.frame(f)).col(data.node_slackliner);
         const double y_harness = data.y_slackliner[f];
         const bool taut = ring.y() - y_harness >= l_leash * (1.0 - 1e-9);
         out << data.time[f] << "," << ring.x() << "," << ring.y() << "," << y_harness << "," << taut << "\n";

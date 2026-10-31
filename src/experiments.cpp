@@ -65,8 +65,7 @@ static ExperimentOutput simulateFall(const SimConfig& cfg, const DiscreteLine& s
    SimData dynamics = fallsim.simulate(t_end, dt_out, as_const_mat2x(q_walking), as_const_mat2x(v0), atol, rtol);
 
    fall_model.place_slackliner(node_slackliner, cfg.slackliner.m);
-   // TODO let q_walking be end of dynamics
-   Vec q_settled = getStaticPosition(q_walking, fall_model);
+   Vec q_settled = getStaticPosition(dynamics.lastFrame(), fall_model);
    StaticData settled_data(fall_model, q_settled);
 
    return {std::move(dynamics), empty_data, walking_data, settled_data};
