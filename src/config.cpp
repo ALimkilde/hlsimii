@@ -13,6 +13,8 @@ void validate(const SimConfig& cfg)
         throw std::invalid_argument("config: L and T must be positive");
     if (cfg.N < 2)
         throw std::invalid_argument("config: N must be at least 2");
+    if (cfg.kv_scale < 0.0 || cfg.drag_scale < 0.0)
+        throw std::invalid_argument("config: kv_scale and drag_scale must be non-negative");
     if (cfg.segments.empty())
         throw std::invalid_argument("config: at least one segment is required");
 }

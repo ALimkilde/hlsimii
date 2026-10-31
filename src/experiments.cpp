@@ -5,6 +5,16 @@
 #include <algorithm>
 #include <stdexcept>
 
+static Params getParams(const SimConfig& cfg) 
+{
+   Params p;
+   
+   p.tau_KV *= cfg.kv_scale;
+   p.c_drag *= cfg.drag_scale;
+
+   return p;
+}
+
 static Vec getStaticPosition(Vec q0, const LineModel& model) {
    
    const double tol = Params{}.newton_tol;
@@ -43,7 +53,7 @@ bool Experiments::anyBreak(const std::vector<bool>& break_segments) {
 static ExperimentOutput simulateFall(const SimConfig& cfg, const DiscreteLine& start_line, const DiscreteLine& fall_line, const double t_end, const double dt_out, SolverType solvertype, const double atol, const double rtol) {
 
    const Vec2 anchor_left(0.0, 0.0), anchor_right(cfg.L, 0.0);
-   const Params params{};
+   const Params params = getParams(cfg);
 
    LineModel start_model(start_line, anchor_left, anchor_right, params);
 

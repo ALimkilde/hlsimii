@@ -292,7 +292,7 @@ SimConfig parse_config(const std::string& yaml_text)
     expect_kind(root, Node::Kind::Map, "config");
     check_keys(root,
                {"plots", "gif", "L", "N", "T", "tension_kN", "pull_webbing", "pull_side",
-                "slackliner", "segments"},
+                "kv_scale", "drag_scale", "slackliner", "segments"},
                "config");
 
     SimConfig cfg;
@@ -304,6 +304,8 @@ SimConfig parse_config(const std::string& yaml_text)
     if (const Node* n = find(root, "tension_kN")) cfg.tension_kN = to_double(*n, "tension_kN");
     if (const Node* n = find(root, "pull_webbing")) cfg.pull_webbing = to_double(*n, "pull_webbing");
     if (const Node* n = find(root, "pull_side")) cfg.pull_side = to_string(*n, "pull_side");
+    if (const Node* n = find(root, "kv_scale")) cfg.kv_scale = to_double(*n, "kv_scale");
+    if (const Node* n = find(root, "drag_scale")) cfg.drag_scale = to_double(*n, "drag_scale");
     cfg.slackliner = parse_slackliner(require(root, "slackliner", "config"));
 
     const Node& segments = require(root, "segments", "config");

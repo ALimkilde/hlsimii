@@ -28,6 +28,8 @@ struct SegmentConfig {
 struct SimConfig {
     bool plots = false;
     bool gif = false;
+    double kv_scale = 1.0;
+    double drag_scale = 1.0;
     double L = 0.0; // length of highline spot [m]
     int N = 0;      // number of discretization vertices
     double T = 0.0; // length of simulation [s]

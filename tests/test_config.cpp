@@ -162,6 +162,30 @@ void test_validate()
     SimConfig few = cfg;
     few.N = 1;
     CHECK(throws([&] { validate(few); }));
+    SimConfig no_damping = cfg;
+    no_damping.kv_scale = 0.0;
+    no_damping.drag_scale = 0.0;
+    validate(no_damping); // zero switches damping/drag off and is allowed
+    SimConfig negative_kv = cfg;
+    negative_kv.kv_scale = -1.0;
+    CHECK(throws([&] { validate(negative_kv); }));
+    SimConfig negative_drag = cfg;
+    negative_drag.drag_scale = -0.5;
+    CHECK(throws([&] { validate(negative_drag); }));
+}
+
+void test_physics_scales()
+{
+    const SimConfig defaults = parse_config(base_config);
+    CHECK(close(defaults.kv_scale, 1.0) && close(defaults.drag_scale, 1.0));
+
+    const SimConfig scaled =
+        parse_config(replace(base_config, "T: 1", "T: 1\nkv_scale: 2.5\ndrag_scale: 0"));
+    CHECK(close(scaled.kv_scale, 2.5));
+    CHECK(close(scaled.drag_scale, 0.0));
+
+    CHECK(throws([] { parse_config(replace(base_config, "T: 1", "T: 1\nkv_scale: -1")); }));
+    CHECK(throws([] { parse_config(replace(base_config, "T: 1", "T: 1\ndrag_scale: big")); }));
 }
 
 void test_yaml_errors()
@@ -191,6 +215,7 @@ int main()
     test_shipped_files_parse();
     test_build_line();
     test_validate();
+    test_physics_scales();
     test_yaml_errors();
 
     if (failures > 0) {
