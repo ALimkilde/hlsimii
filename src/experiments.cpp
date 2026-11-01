@@ -86,7 +86,7 @@ static ExperimentOutput simulateFall(const SimConfig& cfg, const DiscreteLine& s
    Vec q_settled = getStaticPosition(dynamics.lastFrame(), fall_model);
    StaticData settled_data(fall_model, q_settled);
 
-   return {std::move(dynamics), empty_data, walking_data, settled_data, anchors, fall_line.element_segment};
+   return {std::move(dynamics), empty_data, walking_data, settled_data, anchors, fall_line.element_segment, fall_line.node_mass.sum()};
  }
 
 ExperimentOutput Experiments::simulateLeashFall(const SimConfig& cfg, const WebbingCatalog& webbings, const RunOptions& opt) {

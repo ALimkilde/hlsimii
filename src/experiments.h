@@ -30,6 +30,7 @@ struct ExperimentOutput {
    StaticData settled_line; // Static solution for settled line
    Anchors anchors;
    std::vector<int> element_segment;
+   double setup_mass;
 };
 
 struct RunOptions {
