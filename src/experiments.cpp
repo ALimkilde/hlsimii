@@ -77,10 +77,11 @@ static ExperimentOutput simulateFall(const SimConfig& cfg, const DiscreteLine& s
 
    FallSimulator fallsim(fall_model, cfg.slackliner, node_slackliner, opt.solvertype);
 
-   Vec v0(q_walking.size());
+   Vec q0 = cfg.drop_from_loaded ? q_walking : q_empty;
+   Vec v0(q0.size());
    v0.setZero();
 
-   SimData dynamics = fallsim.simulate(cfg.T, opt.dt_out, as_const_mat2x(q_walking), as_const_mat2x(v0), opt.atol, opt.rtol);
+   SimData dynamics = fallsim.simulate(cfg.T, opt.dt_out, as_const_mat2x(q0), as_const_mat2x(v0), opt.atol, opt.rtol);
 
    fall_model.place_slackliner(node_slackliner, cfg.slackliner.m);
    Vec q_settled = getStaticPosition(dynamics.lastFrame(), fall_model);

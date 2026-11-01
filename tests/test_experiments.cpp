@@ -237,6 +237,41 @@ void test_setup_mass()
     CHECK(std::abs(backup.setup_mass - expected) <= 1e-12 * expected);
 }
 
+// --- drop_from_loaded ---
+
+// Largest distance between two flat position vectors of the same line
+double max_diff(const Vec& a, CRef<Vec> b) { return (a - b).cwiseAbs().maxCoeff(); }
+
+// The fall's first frame is the loaded line by default, and the empty line with
+// drop_from_loaded = false. The static results are the same either way: walking_line stays
+// the loaded shape, so its tensions still describe the line with the slackliner on it.
+void test_drop_from_loaded()
+{
+    const WebbingCatalog webbings = mass_webbings();
+
+    const SimConfig loaded_cfg = mass_config();
+    SimConfig hanging_cfg = mass_config();
+    hanging_cfg.drop_from_loaded = false;
+
+    const ExperimentOutput loaded = Experiments::simulateLeashFall(loaded_cfg, webbings, RunOptions{});
+    const ExperimentOutput hanging = Experiments::simulateLeashFall(hanging_cfg, webbings, RunOptions{});
+
+    // The slackliner sags the line, so the two possible starts are clearly apart
+    CHECK(max_diff(loaded.walking_line.q, loaded.empty_line.q) > 1e-2);
+
+    CHECK(max_diff(loaded.walking_line.q, loaded.dynamics.frame(0)) == 0.0);
+    CHECK(max_diff(hanging.empty_line.q, hanging.dynamics.frame(0)) == 0.0);
+
+    CHECK(max_diff(hanging.walking_line.q, loaded.walking_line.q) == 0.0);
+    CHECK(hanging.walking_line.max_tension == loaded.walking_line.max_tension);
+
+    // Harness starts l_leg above the slackliner's node of whichever line the fall starts from
+    const Eigen::Index node = hanging.dynamics.node_slackliner;
+    const double l_leg = hanging_cfg.slackliner.l_leg;
+    CHECK(std::abs(hanging.dynamics.y_slackliner[0] - (as_const_mat2x(hanging.empty_line.q)(1, node) + l_leg)) < 1e-12);
+    CHECK(std::abs(loaded.dynamics.y_slackliner[0] - (as_const_mat2x(loaded.walking_line.q)(1, node) + l_leg)) < 1e-12);
+}
+
 } // namespace
 
 int main()
@@ -247,6 +282,7 @@ int main()
     test_pull_to_tension_round_trip();
     test_pull_to_tension_unreachable();
     test_setup_mass();
+    test_drop_from_loaded();
 
     if (failures == 0) std::cout << "All experiments tests passed\n";
     return failures == 0 ? 0 : 1;

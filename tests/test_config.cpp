@@ -204,6 +204,16 @@ void test_anchor_heights()
     CHECK(throws([] { parse_config(replace(base_config, "T: 1", "T: 1\nanchor_height_left: high")); }));
 }
 
+void test_drop_from_loaded()
+{
+    CHECK(parse_config(base_config).drop_from_loaded); // default: falls start from the loaded line
+
+    const SimConfig hanging = parse_config(replace(base_config, "T: 1", "T: 1\ndrop_from_loaded: false"));
+    CHECK(!hanging.drop_from_loaded);
+
+    CHECK(throws([] { parse_config(replace(base_config, "T: 1", "T: 1\ndrop_from_loaded: maybe")); }));
+}
+
 void test_yaml_errors()
 {
     parse_config(base_config);
@@ -235,6 +245,7 @@ int main()
     test_validate();
     test_physics_scales();
     test_anchor_heights();
+    test_drop_from_loaded();
     test_yaml_errors();
 
     if (failures > 0) {

@@ -299,7 +299,7 @@ SimConfig parse_config(const std::string& yaml_text)
     check_keys(root,
                {"plots", "gif", "L", "N", "T", "tension_kN", "pull_webbing", "pull_side",
                 "kv_scale", "drag_scale", "anchor_height_left", "anchor_height_right",
-                "slackliner", "segments"},
+                "drop_from_loaded", "slackliner", "segments"},
                "config");
 
     SimConfig cfg;
@@ -315,6 +315,7 @@ SimConfig parse_config(const std::string& yaml_text)
     if (const Node* n = find(root, "drag_scale")) cfg.drag_scale = to_double(*n, "drag_scale");
     if (const Node* n = find(root, "anchor_height_left")) cfg.anchor_height_left = to_double(*n, "anchor_height_left");
     if (const Node* n = find(root, "anchor_height_right")) cfg.anchor_height_right = to_double(*n, "anchor_height_right");
+    if (const Node* n = find(root, "drop_from_loaded")) cfg.drop_from_loaded = to_bool(*n, "drop_from_loaded");
     cfg.slackliner = parse_slackliner(require(root, "slackliner", "config"));
 
     const Node& segments = require(root, "segments", "config");

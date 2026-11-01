@@ -40,6 +40,7 @@ struct SimConfig {
     std::vector<SegmentConfig> segments;
     double anchor_height_left = 0.0;
     double anchor_height_right = 0.0;
+    bool drop_from_loaded = true;
 };
 
 using WebbingCatalog = std::map<std::string, Webbing>;
