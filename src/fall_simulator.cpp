@@ -95,7 +95,13 @@ bool FallSimulator::on_output(const double t, CRef<Vec> z, SimData& data) const
    ConstStateView s = const_state_view(z);
 
    data.time.push_back(t);
+
+   // create flat vector from frames x num_nodes
    data.positions.insert(data.positions.end(), s.q.data(), s.q.data() + s.q.size());
+
+   // create flat vector from frames x num_edges
+   const Vec active = linemodel_.backupActivated(s.q); 
+   data.backup_activated.insert(data.backup_activated.end(), active.data(), active.data() + active.size());
 
    AnchorTension anchors = linemodel_.anchor_tension(s.q);
    data.force_anchor_left.push_back(anchors.left);
@@ -103,6 +109,7 @@ bool FallSimulator::on_output(const double t, CRef<Vec> z, SimData& data) const
 
    data.max_tension.push_back(linemodel_.max_tension(s.q));
    data.leash_tension.push_back(linemodel_.max_leash_tension(s.q));
+
 
    data.y_slackliner.push_back(y_slackliner(t, s.q));
 

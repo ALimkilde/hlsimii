@@ -609,6 +609,16 @@ double LineModel::sag(CRef<Mat2X> q) const
    return q.row(1).minCoeff();
 }
 
+Vec LineModel::backupActivated(CRef<Mat2X> q) const
+{
+   Vec active = Vec::Zero(num_edges());
+   for (Eigen::Index e = 0; e < num_edges(); ++e) {
+      const double s_backup = edge_vector(q, e).norm() - line_.l_backup[e];
+      if (line_.k_backup[e] > 0.0 && s_backup > 0.0) active(e) = 1.0;
+   }
+   return active;
+}
+
 
 double LineModel::max_leash_tension(CRef<Mat2X> q) const {
 

@@ -128,6 +128,8 @@ class LineModel {
 
       double sag_flat(const Vec& q_flat) const;
       double sag(CRef<Mat2X> q) const;
+
+      Vec backupActivated(CRef<Mat2X> q) const;
  
       double gravitational_energy(CRef<Mat2X> q) const;
       double gravitational_energy_flat(const Vec& q_flat) const;

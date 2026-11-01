@@ -26,8 +26,12 @@ struct SimData {
    std::vector<double> max_tension;
    std::vector<double> leash_tension;
    std::vector<double> time;
-   std::vector<double> positions;
    std::vector<double> y_slackliner;
+
+   std::vector<double> positions;
+   std::vector<double> backup_activated; // holds whether active or not for plotting
+                                         // 1.0 where the backup of edge e is stretched 
+                                         // past its rest length 
 
    // Node positions of frame f as a 2 x num_nodes view into positions (no copy)
    Eigen::Map<const Vec> frame(size_t f) const {

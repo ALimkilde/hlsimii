@@ -29,6 +29,7 @@ struct ExperimentOutput {
    StaticData walking_line; // Static solution for walking line
    StaticData settled_line; // Static solution for settled line
    Anchors anchors;
+   std::vector<int> element_segment;
 };
 
 struct RunOptions {
