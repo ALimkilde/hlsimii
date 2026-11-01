@@ -97,6 +97,13 @@ bool FallSimulator::on_output(const double t, CRef<Vec> z, SimData& data) const
    data.time.push_back(t);
    data.positions.insert(data.positions.end(), s.q.data(), s.q.data() + s.q.size());
 
+   AnchorTension anchors = linemodel_.anchor_tension(s.q);
+   data.force_anchor_left.push_back(anchors.left);
+   data.force_anchor_right.push_back(anchors.right);
+
+   data.max_tension.push_back(linemodel_.max_tension(s.q));
+   data.leash_tension.push_back(linemodel_.max_leash_tension(s.q));
+
    data.y_slackliner.push_back(y_slackliner(t, s.q));
 
    return true; // Never stop on output

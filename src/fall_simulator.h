@@ -21,6 +21,10 @@ struct SimData {
    // Frames at the output times: line state and slackliner (harness) height
    Eigen::Index node_slackliner = -1;
    Eigen::Index num_nodes = 0;
+   std::vector<double> force_anchor_left;
+   std::vector<double> force_anchor_right;
+   std::vector<double> max_tension;
+   std::vector<double> leash_tension;
    std::vector<double> time;
    std::vector<double> positions;
    std::vector<double> y_slackliner;
