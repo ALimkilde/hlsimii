@@ -11,8 +11,8 @@ add_library(hlsim_core STATIC src/line.cpp src/mesh.cpp src/config.cpp src/physi
 target_include_directories(hlsim_core PUBLIC src)
 target_link_libraries(hlsim_core PUBLIC Eigen3::Eigen)
 
-# YAML front end for SimConfig; the WASM build links only hlsim_core
-add_library(hlsim_yaml STATIC src/config_yaml.cpp)
+# File front ends: YAML in (SimConfig), JSON summary out; the WASM build links only hlsim_core
+add_library(hlsim_yaml STATIC src/config_yaml.cpp src/summary.cpp)
 target_link_libraries(hlsim_yaml PUBLIC hlsim_core)
 
 add_executable(hlsimii src/main.cpp)
@@ -48,6 +48,10 @@ add_executable(test_experiments tests/test_experiments.cpp)
 target_link_libraries(test_experiments PRIVATE hlsim_core)
 add_test(NAME experiments COMMAND test_experiments)
 
+add_executable(test_summary tests/test_summary.cpp)
+target_link_libraries(test_summary PRIVATE hlsim_yaml)
+add_test(NAME summary COMMAND test_summary)
+
 # rk45.h is header-only, so the test only needs Eigen
 add_executable(test_rk45 tests/test_rk45.cpp)
 target_include_directories(test_rk45 PRIVATE src)
@@ -79,7 +83,7 @@ target_link_libraries(make_golden PRIVATE hlsim_yaml)
 target_compile_definitions(make_golden PRIVATE HLSIM_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-  foreach(target hlsim_core hlsim_yaml hlsimii test_line_mesh test_config test_physics test_linalg test_free_fall test_fall_simulator test_rk45 test_rodas test_progress_bar test_regression make_golden)
+  foreach(target hlsim_core hlsim_yaml hlsimii test_line_mesh test_config test_physics test_linalg test_free_fall test_fall_simulator test_rk45 test_rodas test_progress_bar test_regression test_summary make_golden)
     target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic)
   endforeach()
 endif()

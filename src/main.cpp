@@ -14,6 +14,7 @@
 #include "experiments.h"
 #include "line.h"
 #include "mesh.h"
+#include "summary.h"
 
 namespace {
 
@@ -106,16 +107,20 @@ SolverType parse_solver(const std::string& name)
 
 int main(int argc, char** argv)
 {
-    const std::string usage = std::string("usage: ") + argv[0] + " <config.yaml> [webbings.yaml] [--solver rodas4|rk45 (default rodas4)]\n";
+    const std::string usage = std::string("usage: ") + argv[0] + " <config.yaml> [webbings.yaml] [--solver rodas4|rk45 (default rodas4)] [--summary out.json]\n";
 
-    // Positional arguments in order, --solver anywhere
+    // Positional arguments in order, --solver and --summary anywhere
     std::vector<std::string> positional;
     std::string solver_name = "rodas4";
+    std::string summary_path;
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
         if (arg == "--solver") {
             if (i + 1 == argc) { std::cerr << usage; return 2; }
             solver_name = argv[++i];
+        } else if (arg == "--summary") {
+            if (i + 1 == argc) { std::cerr << usage; return 2; }
+            summary_path = argv[++i];
         } else {
             positional.push_back(arg);
         }
@@ -164,6 +169,12 @@ int main(int argc, char** argv)
                             backup->settled_line.anchor_tension);
         } else {
             std::cout << "Backup fall: no mainline break in this setup\n";
+        }
+
+        if (!summary_path.empty()) {
+            std::ofstream out(summary_path);
+            if (!out) throw std::runtime_error("cannot write " + summary_path);
+            write_summary_json(out, cfg, leash, backup);
         }
     } catch (const std::exception& e) {
         std::cerr << "error: " << e.what() << "\n";
