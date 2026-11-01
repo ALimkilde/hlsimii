@@ -5,6 +5,13 @@
 #include <algorithm>
 #include <stdexcept>
 
+static std::vector<bool> getBreakSegments(const SimConfig& cfg) 
+{
+   std::vector<bool> break_segments;
+   for (const SegmentConfig& seg : cfg.segments) break_segments.push_back(seg.break_mainline);
+   return break_segments;
+}
+
 static Params getParams(const SimConfig& cfg) 
 {
    Params p;
@@ -38,7 +45,7 @@ static double unloadedMaxTension(const SimConfig& cfg, const Line& line, const d
    return model.max_tension_flat(getEmptyLine(model));
 }
 
-Eigen::Index placeSlackliner(Vec q0, LineModel& model, const SimConfig& cfg) 
+Eigen::Index placeSlackliner(const Vec& q0, LineModel& model, const SimConfig& cfg) 
 {
    Eigen::Index node_slackliner = model.nearest_node(q0, cfg.slackliner.x_coor);
    model.place_slackliner(node_slackliner, cfg.slackliner.m);
@@ -47,11 +54,11 @@ Eigen::Index placeSlackliner(Vec q0, LineModel& model, const SimConfig& cfg)
 
 }
 
-bool Experiments::anyBreak(const std::vector<bool>& break_segments) {
+static bool anyBreak(const std::vector<bool>& break_segments) {
    return std::find(break_segments.begin(), break_segments.end(), true) != break_segments.end();
 }
 
-static ExperimentOutput simulateFall(const SimConfig& cfg, const DiscreteLine& start_line, const DiscreteLine& fall_line, const double t_end, const double dt_out, SolverType solvertype, const double atol, const double rtol) {
+static ExperimentOutput simulateFall(const SimConfig& cfg, const DiscreteLine& start_line, const DiscreteLine& fall_line, const RunOptions& opt) {
 
    const Anchors anchors(cfg);
    const Params params = getParams(cfg);
@@ -68,12 +75,12 @@ static ExperimentOutput simulateFall(const SimConfig& cfg, const DiscreteLine& s
 
    LineModel fall_model(fall_line, anchors.left, anchors.right, params);
 
-   FallSimulator fallsim(fall_model, cfg.slackliner, node_slackliner, solvertype);
+   FallSimulator fallsim(fall_model, cfg.slackliner, node_slackliner, opt.solvertype);
 
    Vec v0(q_walking.size());
    v0.setZero();
 
-   SimData dynamics = fallsim.simulate(t_end, dt_out, as_const_mat2x(q_walking), as_const_mat2x(v0), atol, rtol);
+   SimData dynamics = fallsim.simulate(cfg.T, opt.dt_out, as_const_mat2x(q_walking), as_const_mat2x(v0), opt.atol, opt.rtol);
 
    fall_model.place_slackliner(node_slackliner, cfg.slackliner.m);
    Vec q_settled = getStaticPosition(dynamics.lastFrame(), fall_model);
@@ -82,13 +89,17 @@ static ExperimentOutput simulateFall(const SimConfig& cfg, const DiscreteLine& s
    return {std::move(dynamics), empty_data, walking_data, settled_data, anchors};
  }
 
-ExperimentOutput Experiments::simulateLeashFall(const SimConfig& cfg, const DiscreteLine& dline, const double t_end, const double dt_out, SolverType solvertype, const double atol, const double rtol) {
-   return simulateFall(cfg, dline, dline, t_end, dt_out, solvertype, atol, rtol);
+ExperimentOutput Experiments::simulateLeashFall(const SimConfig& cfg, const WebbingCatalog& webbings, const RunOptions& opt) {
+   const DiscreteLine dline = Experiments::setupTensionedLine(cfg, webbings);
+   return simulateFall(cfg, dline, dline, opt);
  }
 
-ExperimentOutput Experiments::simulateBackupFall(const SimConfig& cfg, const DiscreteLine& dline, const double t_end, const double dt_out, const std::vector<bool>& break_segments, SolverType solvertype, const double atol, const double rtol) {
-   assert(anyBreak(break_segments));
-   return simulateFall(cfg, dline, with_broken_mainline(dline, break_segments), t_end, dt_out, solvertype, atol, rtol);
+ExperimentOutput Experiments::simulateBackupFall(const SimConfig& cfg, const WebbingCatalog& webbings, const RunOptions& opt) 
+{
+   const DiscreteLine dline = Experiments::setupTensionedLine(cfg, webbings);
+   const std::vector<bool> break_segments = getBreakSegments(cfg);
+
+   return simulateFall(cfg, dline, with_broken_mainline(dline, break_segments), opt);
  }
 
 Vec Experiments::energy_solve(const SimConfig& cfg, const DiscreteLine& dline, const std::vector<bool>& break_segments) {

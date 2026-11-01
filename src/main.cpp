@@ -72,8 +72,7 @@ std::string two_decimals(double v)
 std::string kN(double N) { return two_decimals(N / 1000.0); }
 
 // Summary table: one row per line state, like the ISA backup fall calculator.
-// Height is the leash ring for "Walking" and the harness for the falls; a fall's height is
-// followed by the static energy estimate of its lowest point in parentheses.
+// Height is the leash ring for "Walking" and the harness for the falls.
 const int label_w = 34, height_w = 16, force_w = 12;
 
 void print_table_header()
@@ -90,13 +89,10 @@ void print_table_row(const std::string& label, const std::string& height, Anchor
               << std::setw(force_w) << leash << "\n";
 }
 
-// Peaks of a simulated fall; q_energy is energy_solve's static estimate of its lowest point,
-// where the harness hangs a leash length below the lowest node
-void print_fall_row(const std::string& label, const SimData& d, const Vec& q_energy, double l_leash)
+// Peaks of a simulated fall
+void print_fall_row(const std::string& label, const SimData& d)
 {
-    const double y_energy = as_const_mat2x(q_energy).row(1).minCoeff() - l_leash;
-    const std::string height = two_decimals(d.lowest_point_slackliner) + " (" + two_decimals(y_energy) + ")";
-    print_table_row(label, height, {d.peak_force_anchors[0], d.peak_force_anchors[1]}, kN(d.peak_force_leash));
+    print_table_row(label, two_decimals(d.lowest_point_slackliner), {d.peak_force_anchors[0], d.peak_force_anchors[1]}, kN(d.peak_force_leash));
 }
 
 SolverType parse_solver(const std::string& name)
@@ -132,33 +128,21 @@ int main(int argc, char** argv)
     const std::string webbings_path = positional.size() == 2 ? positional[1] : "data/webbings.yaml";
 
     try {
-        const SolverType solvertype = parse_solver(solver_name);
+        RunOptions opt;
+        opt.solvertype = parse_solver(solver_name);
         SimConfig cfg = parse_config(read_file(config_path));
         const WebbingCatalog webbings = parse_webbings(read_file(webbings_path));
-
-        DiscreteLine dline = Experiments::setupTensionedLine(cfg, webbings);
-
-        const double dt_out = 1.0 / 60.0;   // frame rate of the written animation
-        const double atol = 1e-7, rtol = 1e-3;
-        std::vector<bool> break_segments;
-        for (const SegmentConfig& seg : cfg.segments) break_segments.push_back(seg.break_mainline);
-
-        const bool has_backup_fall = Experiments::anyBreak(break_segments);
 
         const double l_leash = cfg.slackliner.l_leash;
 
         // The falls draw progress bars, so run everything before printing the table
-        const std::vector<bool> no_breaks(break_segments.size(), false);
-        const ExperimentOutput leash = Experiments::simulateLeashFall(cfg, dline, cfg.T, dt_out, solvertype, atol, rtol);
-        const Vec q_energy_leash = Experiments::energy_solve(cfg, dline, no_breaks);
+        const ExperimentOutput leash = Experiments::simulateLeashFall(cfg, webbings, opt);
         write_fall_line_csv("fall_line.csv", leash);
         write_fall_slackliner_csv("fall_slackliner.csv", leash.dynamics, l_leash);
 
         std::optional<ExperimentOutput> backup;
-        Vec q_energy_backup;
-        if (has_backup_fall) {
-            backup = Experiments::simulateBackupFall(cfg, dline, cfg.T, dt_out, break_segments, solvertype, atol, rtol);
-            q_energy_backup = Experiments::energy_solve(cfg, dline, break_segments);
+        if (has_backup_fall(cfg)) {
+            backup = Experiments::simulateBackupFall(cfg, webbings, opt);
             write_fall_line_csv("fall_line_backup.csv", *backup);
             write_fall_slackliner_csv("fall_slackliner_backup.csv", backup->dynamics, l_leash);
         } else {
@@ -173,9 +157,9 @@ int main(int argc, char** argv)
         print_table_header();
         print_table_row("Standing, no one on line (sag)", two_decimals(leash.empty_line.sag), leash.empty_line.anchor_tension);
         print_table_row("Walking (ring)", two_decimals(ring_y(leash.walking_line)), leash.walking_line.anchor_tension);
-        print_fall_row("Leash fall (harness)", leash.dynamics, q_energy_leash, l_leash);
+        print_fall_row("Leash fall (harness)", leash.dynamics);
         if (backup) {
-            print_fall_row("Backup fall - impact (harness)", backup->dynamics, q_energy_backup, l_leash);
+            print_fall_row("Backup fall - impact (harness)", backup->dynamics);
             print_table_row("Backup fall - settled (harness)", two_decimals(ring_y(backup->settled_line) - l_leash),
                             backup->settled_line.anchor_tension);
         } else {

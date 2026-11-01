@@ -1,5 +1,6 @@
 #include "config.h"
 
+#include <algorithm>
 #include <stdexcept>
 
 void validate(const SimConfig& cfg)
@@ -41,4 +42,10 @@ Line build_line(const SimConfig& cfg, const WebbingCatalog& webbings)
         segments.emplace_back(lookup(webbings, s.main), lookup(webbings, s.backup), s.L_main,
                               s.L_backup);
     return Line(std::move(segments));
+}
+
+bool has_backup_fall(const SimConfig& cfg)
+{
+    return std::any_of(cfg.segments.begin(), cfg.segments.end(),
+                       [](const SegmentConfig& s) { return s.break_mainline; });
 }

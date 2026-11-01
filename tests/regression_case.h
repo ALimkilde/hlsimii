@@ -44,23 +44,20 @@ struct Fall {
     SimData data;
 };
 
-// Mirrors the line setup in main.cpp; tol is used as both atol and rtol
+// Runs both falls as main.cpp does; tol is used as both atol and rtol
 inline std::vector<Fall> run_case(const std::string& name, SolverType solver, double tol)
 {
     const SimConfig cfg = parse_config(read_file(data_dir + name + ".yaml"));
     const WebbingCatalog webbings = parse_webbings(read_file(data_dir + "webbings.yaml"));
 
-    const Line line = build_line(cfg, webbings);
-    const double pull = *cfg.pull_webbing;
-    const Line pulled = cfg.pull_side == "left" ? pull_webbing(line, pull, 0.0) : pull_webbing(line, 0.0, pull);
-    const DiscreteLine dline = discretize(pulled, elements_per_segment(pulled, cfg.L / (cfg.N - 1)));
+    RunOptions opt;
+    opt.dt_out = dt_out;
+    opt.solvertype = solver;
+    opt.atol = opt.rtol = tol;
 
-    std::vector<bool> break_segments;
-    for (const SegmentConfig& seg : cfg.segments) break_segments.push_back(seg.break_mainline);
-
-    std::vector<Fall> falls = {{name + "_leash", Experiments::simulateLeashFall(cfg, dline, cfg.T, dt_out, solver, tol, tol).dynamics}};
-    if (Experiments::anyBreak(break_segments))
-        falls.push_back({name + "_backup", Experiments::simulateBackupFall(cfg, dline, cfg.T, dt_out, break_segments, solver, tol, tol).dynamics});
+    std::vector<Fall> falls = {{name + "_leash", Experiments::simulateLeashFall(cfg, webbings, opt).dynamics}};
+    if (has_backup_fall(cfg))
+        falls.push_back({name + "_backup", Experiments::simulateBackupFall(cfg, webbings, opt).dynamics});
     return falls;
 }
 

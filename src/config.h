@@ -47,5 +47,8 @@ using WebbingCatalog = std::map<std::string, Webbing>;
 // Semantic checks shared by every front end. Throws std::invalid_argument.
 void validate(const SimConfig& cfg);
 
+// True when at least one segment's mainline breaks, i.e. there is a backup fall to simulate
+bool has_backup_fall(const SimConfig& cfg);
+
 // Looks up the webbing names of each segment and builds the line
 Line build_line(const SimConfig& cfg, const WebbingCatalog& webbings);

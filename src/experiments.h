@@ -31,6 +31,14 @@ struct ExperimentOutput {
    Anchors anchors;
 };
 
+struct RunOptions {
+   double dt_out = 1.0 / 60.0;   // frame rate of the written animation
+   double atol = 1e-7;
+   double rtol = 1e-3;
+   SolverType solvertype = SolverType::Rosenbrock43;
+};
+
+
 namespace Experiments {
    // Pulls webbing at one anchor until the unloaded line's max tension is `tension` [N]
    Line pull_to_tension(const SimConfig& cfg, const Line& line, const double tension, const bool pull_right);
@@ -38,11 +46,9 @@ namespace Experiments {
    // Setup a discreteline for simulation
    DiscreteLine setupTensionedLine(const SimConfig& cfg, const WebbingCatalog& webbings);
 
-   bool anyBreak(const std::vector<bool>& break_segments);
+   ExperimentOutput simulateLeashFall(const SimConfig& cfg, const WebbingCatalog& webbings,  const RunOptions& opt);
 
-   ExperimentOutput simulateLeashFall(const SimConfig& cfg, const DiscreteLine& dline, const double t_end, const double dt_out, SolverType solvertype, const double atol, const double rtol);
-
-   ExperimentOutput simulateBackupFall(const SimConfig& cfg, const DiscreteLine& dline, const double t_end, const double dt_out, const std::vector<bool>& break_segments, SolverType solvertype, const double atol, const double rtol);
+   ExperimentOutput simulateBackupFall(const SimConfig& cfg, const WebbingCatalog& webbings, const RunOptions& opt);
 
    Vec energy_solve(const SimConfig& cfg, const DiscreteLine& dline, const std::vector<bool>& break_segments);
 
