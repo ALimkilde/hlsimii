@@ -35,6 +35,9 @@ namespace Experiments {
    // Pulls webbing at one anchor until the unloaded line's max tension is `tension` [N]
    Line pull_to_tension(const SimConfig& cfg, const Line& line, const double tension, const bool pull_right);
 
+   // Setup a discreteline for simulation
+   DiscreteLine setupTensionedLine(const SimConfig& cfg, const WebbingCatalog& webbings);
+
    bool anyBreak(const std::vector<bool>& break_segments);
 
    ExperimentOutput simulateLeashFall(const SimConfig& cfg, const DiscreteLine& dline, const double t_end, const double dt_out, SolverType solvertype, const double atol, const double rtol);

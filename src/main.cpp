@@ -136,16 +136,7 @@ int main(int argc, char** argv)
         SimConfig cfg = parse_config(read_file(config_path));
         const WebbingCatalog webbings = parse_webbings(read_file(webbings_path));
 
-        const Line line = build_line(cfg, webbings);
-        const bool pull_right = cfg.pull_side == "right";
-        Line pulled = line;
-        if (cfg.pull_webbing) {
-            const double pull = *cfg.pull_webbing;
-            pulled = pull_right ? pull_webbing(line, 0.0, pull) : pull_webbing(line, pull, 0.0);
-        } else {
-            pulled = Experiments::pull_to_tension(cfg, line, *cfg.tension_kN * 1000.0, pull_right);
-        }
-        DiscreteLine dline = discretize(pulled, elements_per_segment(pulled, cfg.L / (cfg.N - 1)));
+        DiscreteLine dline = Experiments::setupTensionedLine(cfg, webbings);
 
         const double dt_out = 1.0 / 60.0;   // frame rate of the written animation
         const double atol = 1e-7, rtol = 1e-3;

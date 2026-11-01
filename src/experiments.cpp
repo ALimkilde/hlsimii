@@ -146,3 +146,17 @@ Line Experiments::pull_to_tension(const SimConfig& cfg, const Line& line, const 
 
    return pull_right ? pull_webbing(line, 0.0, hi) : pull_webbing(line, hi, 0.0);
 }
+
+DiscreteLine Experiments::setupTensionedLine(const SimConfig& cfg, const WebbingCatalog& webbings) 
+{
+   const Line line = build_line(cfg, webbings);
+   const bool pull_right = cfg.pull_side == "right";
+   Line pulled = line;
+   if (cfg.pull_webbing) {
+      const double pull = *cfg.pull_webbing;
+      pulled = pull_right ? pull_webbing(line, 0.0, pull) : pull_webbing(line, pull, 0.0);
+   } else {
+      pulled = Experiments::pull_to_tension(cfg, line, *cfg.tension_kN * 1000.0, pull_right);
+   }
+   return discretize(pulled, elements_per_segment(pulled, cfg.L / (cfg.N - 1)));
+}
