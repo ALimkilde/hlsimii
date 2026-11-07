@@ -1,5 +1,5 @@
 // Tests for LineModel::edge_vector, edge_force (incl. Kelvin-Voigt damping), edge_drag, assemble, residual, both_neighboring_edges_slack
-// place/remove_slackliner and rhs.
+// place/remove_slackliner (y-only slackliner mass), rhs and the kinetic and gravitational energies.
 // Uses a CHECK macro instead of assert so the tests also run in Release builds.
 
 #include <algorithm>
@@ -737,9 +737,10 @@ void test_max_leash_tension_static()
     m.remove_slackliner();
 }
 
-// Out of equilibrium the node and slackliner share one acceleration a = F / M, so Newton's
-// second law for the slackliner alone gives the leash force m_s * (a - g). The zigzag is far
-// from equilibrium and at rest, so damping and drag are off and F is spring forces plus gravity.
+// Out of equilibrium the node and slackliner share one vertical acceleration a_y = F_y / M_y, so
+// Newton's second law for the slackliner alone gives the leash force m_s * (a_y - g). get_mass is
+// the vertical mass M_y. The zigzag is far from equilibrium and at rest, so damping and drag are
+// off and F is spring forces plus gravity.
 void test_max_leash_tension_accelerating()
 {
     const Zigzag z = zigzag();
@@ -798,7 +799,7 @@ void test_rhs_layout()
 }
 
 // With every edge slack only gravity acts, and m * g / m = g on every node, whatever its mass.
-// That holds with a slackliner too: the extra mass enters both the weight and the division.
+// That holds with a slackliner too: the extra mass enters both the weight and the vertical division.
 void test_rhs_free_fall()
 {
     Params p;
@@ -824,6 +825,94 @@ void test_rhs_free_fall()
     m.place_slackliner(2, 80.0);
     m.rhs(0.0, y, dy);
     CHECK(all_nodes_fall_with_g());
+    m.remove_slackliner();
+}
+
+// The slackliner adds inertia only vertically: on its node dv = (F_x / m_line, F_y / (m_line + m_s)),
+// while every other node keeps F / m_line. The zigzag gives nonzero F_x and F_y on every node.
+// Removing the slackliner must restore rhs exactly, in both directions.
+void test_rhs_slackliner_y_only_mass()
+{
+    const Zigzag z = zigzag();
+    Params p;
+    p.gravity = Vec2(0.0, -10.0);
+    const LineModel m(five_edge_line(), z.left, z.right, p);
+    const double node_mass[4] = {1.1, 1.3, 1.7, 1.9};
+    const double mass = 80.0;
+
+    const Vec y = pack_state(z.q, at_rest(z.q));
+    Vec dy_bare(16), dy(16);
+    m.rhs(0.0, y, dy_bare);
+
+    auto rel_close = [](double a, double b) { return std::abs(a - b) <= 1e-12 * std::max(1.0, std::abs(b)); };
+
+    Mat2X F(2, 4);
+    for (int i = 0; i < 4; ++i) {
+        m.place_slackliner(i, mass);
+        m.rhs(0.0, y, dy);
+        m.assemble(z.q, at_rest(z.q), F);   // includes the slackliner's weight on node i
+
+        for (int j = 0; j < 4; ++j) {
+            const double mx = node_mass[j];
+            const double my = node_mass[j] + (j == i ? mass : 0.0);
+            const bool ok = rel_close(dy[8 + 2 * j], F(0, j) / mx) && rel_close(dy[8 + 2 * j + 1], F(1, j) / my);
+            if (!ok) std::cerr << "  slackliner on node " << i << ": wrong acceleration on node " << j << "\n";
+            CHECK(ok);
+        }
+
+        m.remove_slackliner();
+        m.rhs(0.0, y, dy);
+        CHECK(dy == dy_bare);
+    }
+}
+
+// Kinetic energy with direction-dependent mass: 0.5 * sum_i (m_x,i vx_i^2 + m_y,i vy_i^2).
+// The slackliner adds 0.5 * m_s * vy^2 on its node and nothing for vx.
+void test_kinetic_energy()
+{
+    const Zigzag z = zigzag();
+    const LineModel m(five_edge_line(), z.left, z.right, Params{});
+    const double node_mass[4] = {1.1, 1.3, 1.7, 1.9};
+    const double mass = 80.0;
+
+    Mat2X v(2, 4);
+    v << 0.1, -0.2, 0.3, -0.4,
+         0.5, -0.6, 0.7, -0.8;
+
+    double expected = 0.0;
+    for (int i = 0; i < 4; ++i) expected += 0.5 * node_mass[i] * v.col(i).squaredNorm();
+    CHECK(std::abs(m.kinetic_energy(v) - expected) <= 1e-12 * expected);
+
+    m.place_slackliner(2, mass);
+    const double expected_sl = expected + 0.5 * mass * v(1, 2) * v(1, 2);
+    CHECK(std::abs(m.kinetic_energy(v) - expected_sl) <= 1e-12 * expected_sl);
+
+    // Moving the slackliner's node only sideways gives the slackliner no kinetic energy
+    Mat2X vx = Mat2X::Zero(2, 4);
+    vx(0, 2) = 3.0;
+    CHECK(std::abs(m.kinetic_energy(vx) - 0.5 * node_mass[2] * 9.0) <= 1e-12);
+
+    m.remove_slackliner();
+    CHECK(std::abs(m.kinetic_energy(v) - expected) <= 1e-12 * expected);
+}
+
+// Gravitational energy sum_i M_y,i |g| y_i; the slackliner adds m_s |g| y on its node
+void test_gravitational_energy()
+{
+    const Zigzag z = zigzag();
+    Params p;
+    p.gravity = Vec2(0.0, -10.0);
+    const LineModel m(five_edge_line(), z.left, z.right, p);
+    const double node_mass[4] = {1.1, 1.3, 1.7, 1.9};
+    const double mass = 80.0;
+
+    double expected = 0.0;
+    for (int i = 0; i < 4; ++i) expected += node_mass[i] * 10.0 * z.q(1, i);
+    const double tol = 1e-12 * (1.0 + mass * 10.0 * z.q.row(1).cwiseAbs().maxCoeff());
+    CHECK(std::abs(m.gravitational_energy(z.q) - expected) <= tol);
+
+    m.place_slackliner(1, mass);
+    CHECK(std::abs(m.gravitational_energy(z.q) - (expected + mass * 10.0 * z.q(1, 1))) <= tol);
     m.remove_slackliner();
 }
 
@@ -858,7 +947,8 @@ void test_rhs_static_equilibrium()
 //         [ diag(1/m) Kq  | diag(1/m) Kv  ]
 // The dense J is built from the returned Kq, Kv and compared column by column to the central
 // difference of rhs. Damping and drag are on and the zigzag velocities hit every edge_force branch.
-// Checked without and with a slackliner, so the per-node mass division (incl. the extra mass) is tested.
+// Checked without and with a slackliner. The slackliner's node then has different x and y masses, so
+// scaling columns of K instead of rows, or using one mass for both rows, fails the check.
 void check_rhs_jacobian(const LineModel& m, const Zigzag& z, const char* name)
 {
     const Eigen::Index n = z.q.size();   // 8 position coordinates, 16 state entries
@@ -1140,6 +1230,9 @@ int main()
     test_max_leash_tension_accelerating();
     test_rhs_layout();
     test_rhs_free_fall();
+    test_rhs_slackliner_y_only_mass();
+    test_kinetic_energy();
+    test_gravitational_energy();
     test_rhs_static_equilibrium();
     test_rhs_jacobian();
     test_edge_drag();

@@ -63,7 +63,8 @@ class BlockTriMat {
       Mat2& diag(const int i) { return D[i]; }
       const Mat2& diag(const int i) const { return D[i]; }
 
-      void multiply_rowwise(CRef<Vec> fac);
+      void multiply_blockrowwise(CRef<Vec> fac);
+      void multiply_rowwise(CRef<Mat2X> fac);
 
       Vec operator*(CRef<Vec> x) const;
 

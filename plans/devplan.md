@@ -152,14 +152,14 @@
 ## 15. Make sure IO is correct
 
 - [X] Make sure peak forces are calculated within each timestep (not only on output grid)
-- [ ] Make sure the whole table is computed correctly (implemented by me)
-- [ ] Save output to .csv file
-- [ ] Take Drag and KV scaling as input
-- [ ] Take Webbing width as input
-- [ ] Include Shockload values 
-   - [ ] Peak webbing during backup release
-   - [ ] Peak leash during flick up during backup release
-- [ ] Extensive testing against ISA backup fall
+- [X] Make sure the whole table is computed correctly (implemented by me)
+- [-] Save output to .csv file
+- [X] Take Drag and KV scaling as input
+- [X] Take Webbing width as input
+- [-] Include Shockload values 
+   - [-] Peak webbing during backup release
+   - [-] Peak leash during flick up during backup release
+- [X] Extensive testing against ISA backup fall
 
 ## 16. Energy calculation
 

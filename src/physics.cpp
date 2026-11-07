@@ -13,10 +13,11 @@ LineModel::LineModel(const DiscreteLine& line,
      params_(p),
      has_slackliner_(false),
      node_slackliner_(-1),
-     m_(line_.node_mass),
-     minv_(line_.node_mass.cwiseInverse()),
      drag_coefs_(line.num_elements())
 {
+   m_ = line_.node_mass.transpose().replicate<2, 1>();
+   minv_ = m_.array().cwiseInverse();
+
    for (int e = 0; e < line_.num_elements(); e++) {
       // 0.25; 0.5 from drag expression, 0.5 as the contribution to a node is half the edge worth of drag
       drag_coefs_[e] = 0.25 * params_.rho_air * params_.c_drag  * 
@@ -42,16 +43,16 @@ void LineModel::place_slackliner(const int node, double mass) const {
 
    has_slackliner_ = true;
    node_slackliner_ = node;
-   m_(node_slackliner_) = line_.node_mass(node_slackliner_) + mass;
-   minv_(node_slackliner_) = 1.0/m_(node_slackliner_);
+   m_(1, node_slackliner_) = line_.node_mass(node_slackliner_) + mass;
+   minv_(1, node_slackliner_) = 1.0/m_(1, node_slackliner_);
 }
 
 void LineModel::remove_slackliner() const {
    if (!has_slackliner_) return;
 
    has_slackliner_ = false;
-   m_(node_slackliner_) = line_.node_mass(node_slackliner_);
-   minv_(node_slackliner_) = 1.0/m_(node_slackliner_);
+   m_(1, node_slackliner_) = line_.node_mass(node_slackliner_);
+   minv_(1, node_slackliner_) = 1.0/m_(1, node_slackliner_);
 }
 
 // dq = qb - qa for edge e, which runs from node e-1 to node e.
@@ -234,7 +235,7 @@ void LineModel::assemble_impl(CRef<Mat2X> q, CRef<Mat2X> v, Ref<Mat2X> F, BlockT
    assert(num_edges == num_nodes + 1);
 
    for (Eigen::Index i = 0; i < num_nodes; ++i){
-      F.col(i) = m_(i) * g;
+      F.col(i) = m_(1,i) * g;
    }
 
    for (Eigen::Index e = 0; e < num_edges; ++e){
@@ -294,7 +295,7 @@ Vec2 LineModel::node_force(CRef<Mat2X> q, CRef<Mat2X> v, Eigen::Index i) const {
    assert(q.cols() == v.cols());
    assert(line_.num_elements() == q.cols() + 1);
 
-   Vec2 out = m_(i) * params_.gravity;
+   Vec2 out = m_(1, i) * params_.gravity;
 
    // Two edges contribute
    for (Eigen::Index e = i; e <= i+1; ++e){
@@ -511,7 +512,7 @@ void LineModel::rhs(CRef<Mat2X> q, CRef<Mat2X> v, Ref<Mat2X> dq, Ref<Mat2X> dv, 
    dq = v; 
 
    // Set change in velocities based on forces
-   dv.array().rowwise() *= minv_.transpose().array();
+   dv.array() *= minv_.array();
 
    if (Kq) Kq->multiply_rowwise( minv_ );
    if (Kv) Kv->multiply_rowwise( minv_ );
@@ -530,7 +531,7 @@ double LineModel::elastic_energy_flat(const Vec& q_flat) const {
 
 double LineModel::gravitational_energy(CRef<Mat2X> q) const
 {
-   return q.row(1).dot(m_)*params_.gravity.norm();// TODO stream line g!
+   return q.row(1).dot(m_.row(1))*params_.gravity.norm();// TODO stream line g!
 }
 double LineModel::elastic_energy(CRef<Mat2X> q) const
 {
@@ -556,7 +557,7 @@ double LineModel::elastic_energy(CRef<Mat2X> q) const
 
 double LineModel::kinetic_energy(CRef<Mat2X> v) const
 {
-   return 0.5 * m_.dot(v.colwise().squaredNorm());
+   return 0.5 * m_.cwiseProduct(v.cwiseAbs2()).sum();
 }
 
 double LineModel::max_tension_flat(const Vec& q_flat) const 
@@ -631,7 +632,7 @@ double LineModel::max_leash_tension(CRef<Mat2X> q) const {
    Vec2 f2 = edge_force(e, edge_vector(q,e), Vec2::Zero());
 
    // mass_slackliner / mass_total -> to get slackliners share of force
-   double fac = (m_(node_slackliner_) - line_.node_mass(node_slackliner_)) / m_(node_slackliner_);
+   double fac = (m_(1, node_slackliner_) - line_.node_mass(node_slackliner_)) / m_(1, node_slackliner_);
 
    return fac*(f2(1) - f1(1));
 }

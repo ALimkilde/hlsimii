@@ -1,4 +1,4 @@
-// Tests for BlockTriMat: construction, block accessors, to_dense, setZero, the dense LU solve, row scaling
+// Tests for BlockTriMat: construction, block accessors, to_dense, setZero, the dense LU solve, block-row and per-row scaling
 // and the matrix-vector product. Also tests the block Thomas solver BlockTriLU against the dense solve.
 // Uses a CHECK macro instead of assert so the tests also run in Release builds.
 
@@ -121,12 +121,12 @@ void test_solve()
     CHECK(y(0) == 0.0 && y(7) == 0.0);
 }
 
-// multiply_rowwise(f) takes one factor per block and scales both rows of block row b
+// multiply_blockrowwise(f) takes one factor per block and scales both rows of block row b
 // by f(b), i.e. A <- diag(f0, f0, f1, f1, ...) A.
 // Every block row gets a different factor, so scaling columns instead of rows, using
 // the factor of the wrong block row, or skipping a block all change the result.
 // The factors are small integers, so the products are exact and == can be used.
-void test_multiply_rowwise()
+void test_multiply_blockrowwise()
 {
     BlockTriMat A = three_block_matrix();
     const Mat M = A.to_dense();
@@ -136,7 +136,7 @@ void test_multiply_rowwise()
     Vec f_rows(6);                   // f with each factor repeated for both rows of its block
     f_rows << 2, 2, 5, 5, 11, 11;
 
-    A.multiply_rowwise(f);
+    A.multiply_blockrowwise(f);
     CHECK(A.to_dense() == f_rows.asDiagonal() * M);
 
     // Spot checks against hand-computed entries, one per kind of block
@@ -151,14 +151,47 @@ void test_multiply_rowwise()
     B.diag(0) = mat2(1, 2, 3, 4);
     Vec g(1);
     g << 3;
-    B.multiply_rowwise(g);
+    B.multiply_blockrowwise(g);
     CHECK(B.to_dense() == mat2(3, 6, 9, 12));
 
     // The factors may be a view into a larger vector
     BlockTriMat C = three_block_matrix();
     Vec h = Vec::Zero(5);
     h.segment(1, 3) = f;
-    C.multiply_rowwise(h.segment(1, 3));
+    C.multiply_blockrowwise(h.segment(1, 3));
+    CHECK(C.to_dense() == f_rows.asDiagonal() * M);
+}
+
+// multiply_rowwise(F) takes one factor per row: column b of the 2 x n matrix F scales the x row
+// of block row b by F(0, b) and the y row by F(1, b), i.e. A <- diag(F(0,0), F(1,0), F(0,1), ...) A.
+// All six factors differ, so swapping x and y, scaling columns instead of rows, or using the
+// wrong block row all change the result.
+void test_multiply_rowwise()
+{
+    BlockTriMat A = three_block_matrix();
+    const Mat M = A.to_dense();
+
+    Mat2X F(2, 3);
+    F << 2, 5, 11,
+         3, 7, 13;
+    Vec f_rows(6);
+    f_rows << 2, 3, 5, 7, 11, 13;   // F in column-major order: one factor per row of A
+
+    A.multiply_rowwise(F);
+    CHECK(A.to_dense() == f_rows.asDiagonal() * M);
+
+    // Spot checks against hand-computed entries, one per kind of block
+    const Mat S = A.to_dense();
+    CHECK(S(0, 1) == 2 * 1.0);        // diag(0), x row of block row 0
+    CHECK(S(1, 3) == 3 * 4.0);        // upper(0), y row of block row 0
+    CHECK(S(2, 0) == 5 * 31.0);       // lower(0), x row of block row 1
+    CHECK(S(5, 3) == 13 * 38.0);      // lower(1), y row of block row 2
+
+    // The factors may be a view into a larger matrix
+    BlockTriMat C = three_block_matrix();
+    Mat2X G = Mat2X::Zero(2, 5);
+    G.middleCols(1, 3) = F;
+    C.multiply_rowwise(G.middleCols(1, 3));
     CHECK(C.to_dense() == f_rows.asDiagonal() * M);
 }
 
@@ -301,6 +334,7 @@ int main()
     test_to_dense();
     test_set_zero();
     test_solve();
+    test_multiply_blockrowwise();
     test_multiply_rowwise();
     test_multiply_vector();
     test_lu_solve();

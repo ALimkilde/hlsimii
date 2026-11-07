@@ -162,12 +162,10 @@ void FallSimulator::inelastic_collision(double const t, Ref<Mat2X> v)
 {
    auto v_node = v.col(node_slackliner_); // Returns view
 
-   Vec2 v_slackliner(0.0, freefall_.get_vy(t));
-
    const double m_node = linemodel_.get_mass(node_slackliner_);
    const double m_slackliner = slackliner_.m;
 
-   v_node = (m_node * v_node + m_slackliner * v_slackliner) / ( m_node + m_slackliner);
+   v_node(1) = (m_node * v_node(1) + m_slackliner * freefall_.get_vy(t)) / ( m_node + m_slackliner);
 
    linemodel_.place_slackliner(node_slackliner_, m_slackliner);
 }

@@ -115,7 +115,7 @@ class LineModel {
       Vec2 node_force(CRef<Mat2X> q, CRef<Mat2X> v, Eigen::Index i) const; // Same as assemble().col(i)
 
       double get_mass(const int i) const {
-         return m_[i];
+         return m_(1,i);
       }
 
       double max_tension_flat(const Vec& q) const;
@@ -150,7 +150,7 @@ class LineModel {
       mutable bool has_slackliner_;
       mutable int node_slackliner_;
 
-      mutable Vec m_, minv_;        // node masses and inverses
+      mutable Mat2X m_, minv_;        // node masses and inverses
       std::vector<double> drag_coefs_;
 
       // Templated newton solver

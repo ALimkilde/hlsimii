@@ -1,4 +1,4 @@
-// Tests for FallSimulator::event_leash_loose, event_leash_loose_flat and free_slackliner.
+// Tests for FallSimulator::event_leash_loose, event_leash_loose_flat, free_slackliner and inelastic_collision.
 // Uses a CHECK macro instead of assert so the tests also run in Release builds.
 //
 // Sign convention tested: the event function is negative while the leash is taut,
@@ -242,6 +242,53 @@ void test_free_removes_mass()
     CHECK(std::abs(sim.event_leash_loose_flat(0.0, z) - (-Fy_line)) <= 1e-9);
 }
 
+// ====== inelastic_collision(t, v) ======
+
+// When the leash catches, only vertical momentum is merged: the slackliner has no x inertia.
+// The slackliner is freed at t0 with the node's vy = 11 and falls freely until t1, so it then moves
+// at vs = 11 + gy * (t1 - t0). The node's vy becomes (m_node * vy + m_s * vs) / (m_node + m_s);
+// its vx and the other node are untouched.
+void test_collision_merges_only_y()
+{
+    FallSimulator sim = simulator_with_slackliner_at(1);
+    const Vec z = make_z_moving(1.0, -0.5, 2.0, -0.7);
+    const ConstStateView s = const_state_view(z);
+
+    const double t0 = 3.0;
+    const double t1 = 3.4;
+    sim.free_slackliner(t0, s.q, s.v);
+
+    Mat2X v(2, 2);
+    v << 7.0, 5.0,
+         -3.0, 2.0;
+    sim.inelastic_collision(t1, v);
+
+    const double m_s = slackliner().m;
+    const double vs = 11.0 + gy * (t1 - t0);
+    const double vy_expected = (1.0 * 2.0 + m_s * vs) / (1.0 + m_s);
+
+    CHECK(v(0, 1) == 5.0);                                // no x momentum from the slackliner
+    CHECK(std::abs(v(1, 1) - vy_expected) <= 1e-12);
+    CHECK(v(0, 0) == 7.0 && v(1, 0) == -3.0);             // other node untouched
+}
+
+// After the collision the slackliner hangs on the node again: the vertical mass is 1 + m_s.
+// Node 0 at (1, -0.5) as in test_free_removes_mass: the loose event is -Fy_line / (1 + m_s).
+void test_collision_places_mass()
+{
+    FallSimulator sim = simulator_with_slackliner_at(0);
+    const Vec z = make_z(1.0, -0.5, 2.0, -0.5);
+    const ConstStateView s = const_state_view(z);
+
+    sim.free_slackliner(0.0, s.q, s.v);
+    Mat2X v = Mat2X::Zero(2, 2);
+    sim.inelastic_collision(0.1, v);
+
+    const double len = std::sqrt(1.25);
+    const double Fy_line = 100.0 * (len - 1.0) * 0.5 / len;
+    CHECK(std::abs(sim.event_leash_loose_flat(0.1, z) - (-Fy_line / (1.0 + slackliner().m))) <= 1e-9);
+}
+
 }  // namespace
 
 int main()
@@ -260,6 +307,8 @@ int main()
     test_free_starts_at_taut_threshold();
     test_free_takes_node_velocity();
     test_free_removes_mass();
+    test_collision_merges_only_y();
+    test_collision_places_mass();
 
     if (failures > 0) {
         std::cerr << failures << " check(s) failed\n";
