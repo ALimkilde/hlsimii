@@ -192,8 +192,18 @@
 - [ ] Transfer only necessary inputs/results across the JS/WASM boundary.
 - [ ] Add visualization separately from the numerical core.
 - [ ] Add performance regression tests for representative simulations.
+- [ ] Write test that web site agrees with hlsim
 
-## 18. Validations
+## 18. UI
+- [ ] Make run button follow header
+- [ ] Make cookies based saves of setups
+- [ ] Add a few examples
+- [ ] Reconfigure zoom
+- [ ] Make a not to scale button? (no axis equal)
+- [ ] Make documentation .pdf available
+- [ ] Make a warning about not using this instead of expert knowledge
+
+## 19. Validations
 
 - [ ] Finish documentation!
 - [ ] Validate and make report on experiment
