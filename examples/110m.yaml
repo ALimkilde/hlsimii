@@ -2,8 +2,8 @@
 plots: true        # open the force plot and the two RopePlayer windows
 gif: false           # write example.gif (leash fall animated above backup fall)
 
-anchor_height_left: 11
-anchor_height_right: 14
+anchor_height_left: 0
+anchor_height_right: 0
 L: 110              # length of highline spot [m]
 N: 55               # number of discretization verticies
 T: 10               # length of simulation [s]
