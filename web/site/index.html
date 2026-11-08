@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HLSimII Fall Simulator</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/uplot@1.6.32/dist/uPlot.min.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>HLSimII fall simulator</h1>
+  <span class="muted">hlsimii compiled to WebAssembly, running in your browser</span>
+</header>
+
+<main>
+  <aside id="setup">
+    <div class="run">
+      <button id="run" disabled title="Ctrl+R">Loading simulator…</button>
+      <span id="status" class="muted"></span>
+    </div>
+    <div class="tabs" role="tablist">
+      <button type="button" role="tab" id="tab-setup" aria-controls="panel-setup" aria-selected="true">Setup</button>
+      <button type="button" role="tab" id="tab-webbings" aria-controls="panel-webbings" aria-selected="false">Webbings</button>
+    </div>
+
+    <div id="panel-setup" role="tabpanel" aria-labelledby="tab-setup">
+    <section>
+      <div class="row">
+        <label>Example
+          <select id="example">
+            <option value="110m.yaml">110m.yaml</option>
+            <option value="short_and_static.yaml">short_and_static.yaml</option>
+            <option value="250m.yaml">250m.yaml</option>
+          </select>
+        </label>
+      </div>
+    </section>
+
+    <form id="form" autocomplete="off">
+      <fieldset>
+        <legend>Spot</legend>
+        <label>L [m] <input name="L" type="number" step="any" min="0"></label>
+        <label>N vertices <input name="N" type="number" step="1" min="2"></label>
+        <label>T [s] <input name="T" type="number" step="any" min="0"></label>
+        <label>left anchor height [m] <input name="anchor_height_left" type="number" step="any"></label>
+        <label>right anchor height [m] <input name="anchor_height_right" type="number" step="any"></label>
+        <p class="muted small">Anchors sit at (0, left height) and (L, right height): L is the horizontal distance between them.</p>
+      </fieldset>
+      <fieldset>
+        <legend>Tension</legend>
+        <label>standing tension [kN] <input name="tension_kN" type="number" step="any" min="0"></label>
+        <label>or pull webbing [m] <input name="pull_webbing" type="number" step="any"></label>
+        <label>pull side
+          <select name="pull_side"><option>right</option><option>left</option></select>
+        </label>
+        <p class="muted small">Set one of the two: the webbing is pulled at the chosen side, either by a fixed length or until the unloaded line reaches the standing tension.</p>
+      </fieldset>
+      <fieldset>
+        <legend>Slackliner</legend>
+        <label>mass [kg] <input name="m" type="number" step="any" min="0"></label>
+        <label>leg [m] <input name="l_leg" type="number" step="any" min="0"></label>
+        <label>leash [m] <input name="l_leash" type="number" step="any" min="0"></label>
+        <label>x [m] <input name="x_coor" type="number" step="any" min="0"></label>
+      </fieldset>
+      <fieldset>
+        <legend>Damping</legend>
+        <div class="slider">
+          <label>Kelvin-Voigt scale <output id="kv_scale-value" class="mono"></output>
+            <input name="kv_scale" class="log-slider" type="range" min="0" max="300" step="1"></label>
+          <button type="button" class="secondary reset" data-reset="kv_scale">reset to 1×</button>
+        </div>
+        <div class="slider">
+          <label>drag scale <output id="drag_scale-value" class="mono"></output>
+            <input name="drag_scale" class="log-slider" type="range" min="0" max="300" step="1"></label>
+          <button type="button" class="secondary reset" data-reset="drag_scale">reset to 1×</button>
+        </div>
+        <p class="muted small">Multiply the simulator's Kelvin-Voigt damping time τ<sub>KV</sub> and air drag coefficient. Log scale from 0.01 to 10; far left is 0 (off).</p>
+      </fieldset>
+      <fieldset>
+        <legend>Segments</legend>
+        <table id="segments">
+          <thead><tr><th>main</th><th>backup</th><th>L main</th><th>L backup</th><th title="break the main line in this segment">break</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <button type="button" id="add-segment" class="secondary">+ segment</button>
+      </fieldset>
+    </form>
+
+    <details id="yaml-panel">
+      <summary>YAML config</summary>
+      <p class="muted small">Stays in sync with the form. Edits here are parsed by the simulator's own YAML reader.</p>
+      <textarea id="yaml" spellcheck="false" rows="18"></textarea>
+    </details>
+    </div>
+
+    <div id="panel-webbings" role="tabpanel" aria-labelledby="tab-webbings" hidden>
+      <p class="muted small">The catalogue the segments pick from. Stiffness comes from the stretch at a given tension; width only matters for air drag (blank = 25 mm). Edits are kept in this browser.</p>
+      <div class="table-scroll">
+      <table id="webbings">
+        <thead><tr><th>name</th><th title="stretch at the tension [%]">stretch %</th><th title="tension the stretch is measured at [kN]">at kN</th><th title="weight [g/m]">g/m</th><th title="width [mm], only used for air drag">width mm</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      </div>
+      <p id="webbings-error" class="error" role="alert" hidden></p>
+      <div class="row buttons">
+        <button type="button" id="add-webbing" class="secondary">+ webbing</button>
+        <button type="button" id="reset-webbings" class="secondary">reset to shipped catalogue</button>
+      </div>
+      <details id="webbings-yaml-panel">
+        <summary>webbings.yaml</summary>
+        <p class="muted small">Stays in sync with the table. Edits here are parsed by the simulator's own reader.</p>
+        <textarea id="webbings-yaml" spellcheck="false" rows="14"></textarea>
+      </details>
+    </div>
+    <p id="error" role="alert" hidden></p>
+
+  </aside>
+
+  <section id="results" hidden>
+    <table id="summary">
+      <thead><tr><th>Situation</th><th>Slackliner's height (m)</th><th>Tension - left side (kN)</th><th>Tension - right side (kN)</th><th>Tension - leash (kN)</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <p id="setup-weight"></p>
+    <p class="muted small"><b>Note:</b> as in the ISA calculator, the height column mixes points: for "Standing" it is the lowest point of the unloaded line (its sag), for "Walking" it is the leash ring on the line, for the falls it is the slackliner's harness (ring minus leash length), at its lowest point.
+      Anchor and leash tensions of the falls are the simulator's peaks (checked every integration step).
+      "Settled" is the static equilibrium of the broken line with the slackliner hanging in the leash.</p>
+
+    <div class="player">
+      <button id="play" class="secondary" aria-label="play">▶</button>
+      <input id="time" type="range" min="0" max="0" value="0" step="1">
+      <span id="time-label" class="mono">t = 0.000 s</span>
+      <label class="small">speed
+        <select id="speed"><option value="0.25">¼×</option><option value="0.5">½×</option><option value="1" selected>1×</option></select>
+      </label>
+    </div>
+
+    <div id="falls"></div>
+  </section>
+</main>
+
+<template id="fall-template">
+  <article class="fall">
+    <h2></h2>
+    <div class="anim">
+      <div><h3>Whole line (true scale)</h3><canvas class="whole"></canvas></div>
+      <div><h3>Around the leash ring (true scale)</h3><canvas class="zoom"></canvas></div>
+    </div>
+    <div class="key">
+      <span><svg width="18" height="6"><line x1="1" y1="3" x2="17" y2="3" stroke="var(--series-1)" stroke-width="2" stroke-linecap="round"/></svg>webbing (backup slack)</span>
+      <span><svg width="18" height="6"><line x1="1" y1="3" x2="17" y2="3" stroke="var(--backup)" stroke-width="3" stroke-linecap="round"/></svg>backup loaded</span>
+      <span><svg width="8" height="8"><circle cx="4" cy="4" r="1.3" fill="var(--text-primary)"/></svg>mesh node</span>
+      <span><svg width="12" height="12"><path d="M6 1.5 10.5 6 6 10.5 1.5 6Z" fill="var(--surface-1)" stroke="var(--text-primary)" stroke-width="1.5"/></svg>segment connection</span>
+    </div>
+    <div class="charts">
+      <div><h3>Forces [kN]</h3><div class="forces"></div></div>
+      <div><h3>Heights [m] <span class="muted small">(shaded: leash taut)</span></h3><div class="heights"></div></div>
+    </div>
+  </article>
+</template>
+
+<script src="https://cdn.jsdelivr.net/npm/uplot@1.6.32/dist/uPlot.iife.min.js"></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>
