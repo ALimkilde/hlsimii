@@ -202,6 +202,8 @@
 - [ ] Make a not to scale button? (no axis equal)
 - [ ] Make documentation .pdf available
 - [ ] Make a warning about not using this instead of expert knowledge
+- [ ] Rewrite all sentences
+- [ ] Make step 0.1 for most settings
 
 ## 19. Validations
 
