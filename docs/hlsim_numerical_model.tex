@@ -34,6 +34,8 @@
 \newcommand{\ddx}{\ddot{x}}
 \newcommand{\kN}{\text{kN}}
 
+\newcommand{\tv}{\tilde{v}}
+
 \title{Numerical Method of hlsimII}
 \author{Asger Limkilde}
 
@@ -213,8 +215,65 @@ We do have to detect when the leash might go loose again (the slackliner goes ba
 \subsection{Dampening}%
 \label{sub:dampening}
 
+We will use two types of dampening for this simulator: Aerodynamic drag of the webbing moving throught the air, and an energy loss in the webbing when the line is retracting.
+
+\subsubsection{Aerodynamic drag}%
+\label{ssub:Aerodynamic drag}
+%
+We assume that the drag on the line will depend on the speed in the direction perpendicular to the webbing. Let $n_e$ define the unit normal vector for edge $e$ and let $v_i$ be the speed of a node $i$ connected to the edge $e$. Then we can compute the speed orthogonal to the edge $\tv^e_i$ as:
+%
+\begin{equation}
+   \tv^e_i = (v_i \cdot n_e) n_e
+\end{equation}
+%
+The contribution of the drag from the webbing will be computed as
+%
+\begin{equation}
+   F^e_i = - C_D^e \tv^e_i \Vert \tv^e_i \Vert
+\end{equation}
+%
+here the minus sign makes sure that the drag force is pointing in the opposite direction of the movement of the line. The constant $C_D$ is the drag is given as CITE[Wikipedia]
+%
+\begin{equation}
+   C_D^e = \frac{1}{4} c_\text{drag} \rho_\text{air} A_e
+\end{equation}
+%
+where $\rho_\text{air}$ is the density of air, $c_\text{drag}$ is the coeffient of drag dependent on the shape and $A_e$ is the cross sectional area of the edge. We assume the edges contribution is shared equally between the to edges which gives a factor $\frac{1}{2}$ and the other factor $\frac{1}{2}$ comes from the formula CITE[wikipedia]. The area is computed as
+%
+\begin{equation}
+   A_e = w^\text{main}_e l^\text{main} + w^\text{backup}_e l^\text{backup}_e
+\end{equation}
+%
+where $w_e$ is the webbing width (of main and backup) and $l_e$ it's resting length. One could argue to use the true length of the stretched segment here, but the webbing we consider only stretches a few percent, and might get narrower in the process. So using the rest length seems like a reasonable choice, and simplifies the numerical computation as $C_D$ can be precomputed.
+%
+The coefficient of drag $c_\text{drag}$ is taken from from CITE[drag coeff] as the coefficient for a rectangular shape
+%
+\begin{equation}
+   c_\text{drag} = 1.15
+\end{equation}
+% 
+This value could be two high, in the case of the webbing twisting sideways and exposing a much smaller edge against the wind, or it could be too low if the webbing is flapping which can produce a lot more drag than a solid rectangle moving through air. So this choice seems reasonable. I have include a scaling factor \texttt{drag\_scale} in the advanced settings so that the user can play around with different scalings of the drag force. Setting it to 0 turns off drag entirely, and setting it to 10 increases the drag by a factor 10.
+
+\subsubsection{Kelvin Voight dampening}%
+\label{ssub:Kelvin Voight dampening}
+
+\begin{itemize}
+   \item Explain dash pot
+   \item write down equation
+   \item Explain why we only do it in the compressing part of dynamics. (Softest longest possible fall). 
+   \item Explain why it less dampening doesnt necessarily lead to higher forces and lower falls. (Recoil of webbing)
+\end{itemize}
+
+
 \subsection{Time Integration}%
 \label{sub:odesolver}
+
+\begin{itemize}
+   \item We use a Rosenbrock time integrator.
+   \item It is adaptive
+   \item Tolerances very fine (1E-7) as stability dominates anyways
+   \item Hint at how to make it go really fast! Schur complement and block tri diagonal
+\end{itemize}
 
 
 \subsection{Post Processing and Force Computation}%
@@ -223,11 +282,11 @@ We do have to detect when the leash might go loose again (the slackliner goes ba
 \section{Implementation Details}
 \label{sec:impl}
 
-\section{Comparison to the ISA backupfall simulator}
-\label{sec:compare_ISA}
-
-\section{Conclusion and Future work}
+\section{Conclusion}
 \label{sec:concl}
+
+\section{Future Work}
+\label{sec:future_work}
 
 \appendix
 \section{Derivatives to Forces}
