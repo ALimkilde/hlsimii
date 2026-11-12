@@ -45,7 +45,8 @@ set_target_properties(hlsim PROPERTIES
   SUFFIX ".mjs"
   RUNTIME_OUTPUT_DIRECTORY ${HLSIM_OUT_DIR})
 
-# dist/ = the page in site/ + the simulator's webbing catalogue and examples. A target of its
+# dist/ = the page in site/ + the simulator's webbing catalogue and examples + the documentation PDF
+# (the page's Documentation button links to it). A target of its
 # own so edits there reach dist/ on every build, not only when hlsim relinks. Skipped for the
 # node build (test/smoke.mjs reads the YAML from the source tree). The examples must match the
 # <select id="example"> options in site/index.html.
@@ -55,5 +56,6 @@ if(HLSIM_ENVIRONMENT STREQUAL "worker")
   add_custom_target(site ALL
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/site ${HLSIM_OUT_DIR}
     COMMAND ${CMAKE_COMMAND} -E copy ${HLSIM_DIR}/data/webbings.yaml ${example_paths} ${HLSIM_OUT_DIR}
+    COMMAND ${CMAKE_COMMAND} -E copy ${HLSIM_DIR}/docs/hlsim_numerical_model.pdf ${HLSIM_OUT_DIR}
     VERBATIM)
 endif()

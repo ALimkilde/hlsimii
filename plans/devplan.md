@@ -201,8 +201,8 @@
 - [X] Make cookies based saves of setups
 - [ ] Add a few examples
 - [-] Reconfigure zoom
-- [ ] Make a not to scale button? (no axis equal)
-- [ ] Make documentation .pdf available
+- [-] Make a not to scale button? (no axis equal)
+- [X] Make documentation .pdf available
 - [X] Make a warning about not using this instead of expert knowledge
 - [ ] Rewrite all sentences
 - [X] Make step 0.1 for most settings

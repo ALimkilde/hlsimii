@@ -34,7 +34,7 @@ Compiles the C++ in `../src` unchanged; everything web-specific lives in this fo
 Needs emsdk (installed in `~/emsdk`; `build.sh` sources it automatically).
 
 ```
-./build.sh          # -> dist/: site/ + hlsim.mjs, hlsim.wasm + webbings.yaml and examples from ..
+./build.sh          # -> dist/: site/ + hlsim.mjs, hlsim.wasm + webbings.yaml, examples and docs/hlsim_numerical_model.pdf from ..
 ./build.sh serve    # build, then serve dist/ at http://localhost:8000
 ./build.sh test     # node build + headless smoke test (test/smoke.mjs) on examples/110m.yaml
 ```
