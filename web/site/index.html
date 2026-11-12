@@ -71,6 +71,14 @@
         <label>x [m] <input name="x_coor" type="number" step="any" min="0"></label>
       </fieldset>
       <fieldset>
+        <legend>Segments</legend>
+        <table id="segments">
+          <thead><tr><th>main</th><th>backup</th><th>L main</th><th>L backup</th><th title="break the main line in this segment">break</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <button type="button" id="add-segment" class="secondary">+ segment</button>
+      </fieldset>
+      <fieldset>
         <legend>Damping</legend>
         <div class="slider">
           <label>Kelvin-Voigt scale <output id="kv_scale-value" class="mono"></output>
@@ -83,14 +91,6 @@
           <button type="button" class="secondary reset" data-reset="drag_scale">reset to 1×</button>
         </div>
         <p class="muted small">Multiply the simulator's Kelvin-Voigt damping time τ<sub>KV</sub> and air drag coefficient. Log scale from 0.01 to 10; far left is 0 (off).</p>
-      </fieldset>
-      <fieldset>
-        <legend>Segments</legend>
-        <table id="segments">
-          <thead><tr><th>main</th><th>backup</th><th>L main</th><th>L backup</th><th title="break the main line in this segment">break</th><th></th></tr></thead>
-          <tbody></tbody>
-        </table>
-        <button type="button" id="add-segment" class="secondary">+ segment</button>
       </fieldset>
     </form>
 

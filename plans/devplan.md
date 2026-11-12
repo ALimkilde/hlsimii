@@ -211,6 +211,10 @@
 - [ ] Move the kv and drag scale to bottom
 - [ ] Visualice harness and legs differently
 
+## 19. Bugs
+
+- [ ] Pull line cannot pull past a segment.
+
 ## 19. Validations
 
 - [ ] Finish documentation!
