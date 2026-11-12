@@ -30,7 +30,9 @@ onmessage = async ({ data: { id, type, yaml, webbings } }) => {
       result.seconds = (performance.now() - t0) / 1000;
     }
   } catch (err) {
-    result = { error: String(err) };
+    // The bindings turn C++ exceptions into {error}, so anything thrown here is a trap or abort:
+    // this WASM instance can't be trusted any more, and the page replaces the worker
+    result = { error: String(err), crashed: true };
   }
   // Typed arrays are copied by structured clone; transfer them instead
   const transfer = [];

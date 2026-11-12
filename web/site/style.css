@@ -152,6 +152,7 @@ button:disabled { opacity: 0.6; cursor: progress; }
 .run { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; min-width: 0; }
 /* tabs, status and button share ~340px: nothing wraps, a long status is cut with … */
 .run button { padding: 4px 10px; white-space: nowrap; flex: none; }
+#run.stop { background: var(--error); border-color: var(--error); } /* while running it stops the run */
 #status { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .pinned .tabs { flex: none; }
 .pinned .tabs button { padding: 4px 8px; }

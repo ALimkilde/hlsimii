@@ -5,45 +5,126 @@ const css = (name) => getComputedStyle(document.documentElement).getPropertyValu
 
 // ---------------------------------------------------------------- worker
 
-// Two workers, each with its own copy of the WASM module, so the leash and backup falls run in
-// parallel. The first one also answers the form's parse requests.
-function startWorker() {
-  const worker = new Worker("worker.js", { type: "module" });
-  const pending = new Map();
-  let nextId = 0;
-  const ready = new Promise((resolve) => {
-    worker.onmessage = ({ data }) => {
-      if (data.type === "ready") resolve(data);
-      else if (data.type === "result") {
-        pending.get(data.id)(data.result);
-        pending.delete(data.id);
-      } else if (data.type === "log") console.log("[hlsim]", data.text);
-    };
-  });
-  const call = (type, yaml, webbings) =>
-    new Promise((resolve) => {
-      const id = nextId++;
-      pending.set(id, resolve);
-      worker.postMessage({ id, type, yaml, webbings });
-    });
-  return { ready, call };
+// The WASM simulator can crash (trap/abort) or hang on extreme inputs, and a crashed instance stays
+// broken. So every run gets a fresh pair of workers (one per fall, run in parallel) that is thrown
+// away afterwards; starting one takes ~20 ms. A spare pair is warmed up in the background so a run
+// doesn't wait for that. A hung run is ended by terminating its workers (Stop button or timeout).
+// A separate long-lived helper worker answers the form's parse/webbings requests and is replaced
+// if it crashes.
+
+const RUN_TIMEOUT_S = 60; // a run still going after this is assumed hung and stopped
+const HELPER_TIMEOUT_S = 10; // parse/webbings requests are near-instant
+
+// Why a call ended without a result: the worker crashed/died, was stopped, or timed out
+class WorkerGone extends Error {
+  constructor(reason, message) { super(message); this.reason = reason; }
 }
 
-const workers = [startWorker(), startWorker()];
-const call = workers[0].call;
-const workerReady = Promise.all(workers.map((w) => w.ready)).then((r) => r.find((x) => x.error) ?? r[0]);
+function startWorker() {
+  const worker = new Worker("worker.js", { type: "module" });
+  const pending = new Map(); // id -> {resolve, reject}
+  let nextId = 0;
+  let gone = null;
+  let resolveReady;
+  const ready = new Promise((r) => (resolveReady = r));
+  // Ends the worker; open calls reject with the reason
+  const stop = (reason = "stopped", message = "stopped") => {
+    if (gone) return;
+    gone = new WorkerGone(reason, message);
+    worker.terminate();
+    resolveReady({ error: message });
+    for (const { reject } of pending.values()) reject(gone);
+    pending.clear();
+  };
+  worker.onmessage = ({ data }) => {
+    if (data.type === "ready") {
+      resolveReady(data);
+      if (data.error) stop("crashed", data.error);
+    } else if (data.type === "result") {
+      pending.get(data.id)?.resolve(data.result);
+      pending.delete(data.id);
+    } else if (data.type === "log") console.log("[hlsim]", data.text);
+  };
+  // Uncaught error inside the worker (e.g. it ran out of memory): it can't answer any more
+  worker.onerror = (e) => { e.preventDefault(); stop("crashed", e.message || "the simulator worker died"); };
+  worker.onmessageerror = () => stop("crashed", "the simulator worker sent an unreadable message");
+  const call = (type, yaml, webbings) =>
+    gone ? Promise.reject(gone) : new Promise((resolve, reject) => {
+      const id = nextId++;
+      pending.set(id, { resolve, reject });
+      worker.postMessage({ id, type, yaml, webbings });
+    });
+  return { ready, call, stop };
+}
+
+// Rejects with WorkerGone("timeout") after s seconds unless cleared
+function timeoutAfter(s) {
+  let timer;
+  const promise = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new WorkerGone("timeout", `no answer within ${s} s`)), s * 1000);
+  });
+  return { promise, clear: () => clearTimeout(timer) };
+}
+
+// --- helper worker: parse/webbings for the form, restarted when it crashes or hangs
+let helper = startWorker();
+const workerReady = helper.ready;
+async function call(type, yaml) {
+  const t = timeoutAfter(HELPER_TIMEOUT_S);
+  try {
+    const result = await Promise.race([helper.call(type, yaml), t.promise]);
+    if (result.crashed) throw new WorkerGone("crashed", result.error);
+    return result;
+  } catch (err) {
+    if (!(err instanceof WorkerGone)) throw err;
+    helper.stop();
+    helper = startWorker();
+    return { error: `The simulator crashed while reading this input (${err.message}). It has been restarted.` };
+  } finally {
+    t.clear();
+  }
+}
+
 let webbingNames = [];
 let webbingsYaml = ""; // the catalogue the simulations use, owned by the Webbings tab
 
-// Both falls at once; the result has the shape showResults expects
+// --- simulation workers: a fresh pair per run
+const startPair = () => [startWorker(), startWorker()];
+let sparePair = startPair();
+let runningPair = null; // the pair of the run in progress, for the Stop button
+
+function stopRun() {
+  for (const w of runningPair ?? []) w.stop("stopped", "stopped");
+}
+
+// Both falls at once; the result has the shape showResults expects, or {error}, or {stopped: true}
 async function simulate(yaml) {
-  const [leash, backup] = await Promise.all([
-    workers[0].call("leash", yaml, webbingsYaml),
-    workers[1].call("backup", yaml, webbingsYaml),
-  ]);
-  const failed = [leash, backup].find((r) => r.error);
-  if (failed) return failed;
-  return { config: leash.config, setupMass: leash.fall.setupMass, leash: leash.fall, backup: backup.fall };
+  const pair = sparePair;
+  sparePair = null;
+  runningPair = pair;
+  const t = timeoutAfter(RUN_TIMEOUT_S);
+  try {
+    const [leash, backup] = await Promise.race([
+      Promise.all([pair[0].call("leash", yaml, webbingsYaml), pair[1].call("backup", yaml, webbingsYaml)]),
+      t.promise,
+    ]);
+    const crashed = [leash, backup].find((r) => r.crashed);
+    if (crashed) throw new WorkerGone("crashed", crashed.error);
+    const failed = [leash, backup].find((r) => r.error);
+    if (failed) return failed;
+    return { config: leash.config, setupMass: leash.fall.setupMass, leash: leash.fall, backup: backup.fall };
+  } catch (err) {
+    if (!(err instanceof WorkerGone)) throw err;
+    if (err.reason === "stopped") return { stopped: true };
+    if (err.reason === "timeout")
+      return { error: `The simulation was still running after ${RUN_TIMEOUT_S} s and was stopped. The input is probably too extreme for the solver.` };
+    return { error: `The simulator crashed on this input (${err.message}). It has been restarted, so you can change the setup and run again.` };
+  } finally {
+    t.clear();
+    for (const w of pair) w.stop(); // used up: never reuse an instance that has run a simulation
+    runningPair = null;
+    sparePair = startPair();
+  }
 }
 
 // ---------------------------------------------------------------- form <-> YAML
@@ -368,32 +449,42 @@ if (store.get(TAB_KEY) === "tab-webbings") selectTab("tab-webbings");
 
 // ---------------------------------------------------------------- run
 
-runButton.onclick = async () => {
-  runButton.disabled = true;
-  runButton.textContent = "Simulating…";
+// While a run is going the button is "Stop", which terminates the run's workers
+let running = false;
+
+async function run() {
+  running = true;
+  runButton.textContent = "Stop";
+  runButton.title = "Stop the simulation";
+  runButton.classList.add("stop");
   showError("");
   const t0 = performance.now();
-  const timer = setInterval(() => ($("#status").textContent = `${((performance.now() - t0) / 1000).toFixed(0)} s`), 250);
+  const status = $("#status");
+  const timer = setInterval(() => (status.textContent = `${((performance.now() - t0) / 1000).toFixed(0)} s`), 250);
   try {
     const result = await simulate(yamlBox.value);
-    if (result.error) showError(result.error);
+    if (result.stopped) status.textContent = "stopped";
+    else if (result.error) { showError(result.error); status.textContent = ""; }
     else {
       showResults(result);
-      $("#status").textContent = `done in ${((performance.now() - t0) / 1000).toFixed(1)} s`;
+      status.textContent = `done in ${((performance.now() - t0) / 1000).toFixed(1)} s`;
     }
   } finally {
     clearInterval(timer);
-    if (errorBox.hidden === false) $("#status").textContent = "";
-    runButton.disabled = false;
+    running = false;
     runButton.textContent = "Run simulation";
+    runButton.title = "Ctrl+R";
+    runButton.classList.remove("stop");
   }
-};
+}
 
-// Ctrl+R (Cmd+R on macOS) runs the simulation instead of reloading the page
+runButton.onclick = () => (running ? stopRun() : run());
+
+// Ctrl+R (Cmd+R on macOS) runs the simulation instead of reloading the page; it never stops a run
 document.addEventListener("keydown", (e) => {
   if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "r") {
     e.preventDefault();
-    if (!runButton.disabled) runButton.click();
+    if (!running && !runButton.disabled) run();
   }
 });
 

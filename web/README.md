@@ -22,8 +22,10 @@ Compiles the C++ in `../src` unchanged; everything web-specific lives in this fo
   YAML and read by the simulator's own parser.
 - `CMakeLists.txt`: a separate emscripten project, independent of the native build in `../CMakeLists.txt`.
   It lists the simulator sources directly. Eigen comes from `/usr/include/eigen3`.
-- `site/`: the hand-written page. Two module workers, each with its own WASM instance, run the leash and the backup fall in
-  parallel, uPlot draws the charts, and a canvas animates the falls
+- `site/`: the hand-written page. Each run starts a fresh pair of module workers, each with its own WASM instance, that run
+  the leash and the backup fall in parallel and are thrown away afterwards, so a crashed or hung simulator never outlives
+  its run (a spare pair is warmed up in the background; Stop and a 60 s timeout terminate a run). A separate helper worker
+  parses the form and the webbings and is replaced if it crashes. uPlot draws the charts, and a canvas animates the falls
   (mesh nodes as dots, segment connections as diamonds, edges with a loaded backup in orange).
   The Webbings tab edits the catalogue: a table synced with a YAML box, validated by `listWebbings`.
   The page sends that catalogue with every simulation, so `data/webbings.yaml` is only the starting point;
