@@ -721,12 +721,11 @@ function drawScene(canvas, fall, f, vp, cfg, { gridStep }) {
   ctx.fillStyle = css("--text-secondary");
   for (const i of [0, n - 1]) ctx.fillRect(X(fall.x[row + i]) - 4, Y(fall.y[row + i]) - 4, 8, 8);
 
-  // Leash (solid when taut) and slackliner
+  // Leash in its own colour, solid when taut, dashed when slack
   const rx = fall.ringX[f], ry = fall.ringY[f], hy = fall.yHarness[f];
   const slack = cfg.slackliner;
   const taut = fall.taut[f] > 0;
-  const color = css("--series-2");
-  ctx.strokeStyle = color;
+  ctx.strokeStyle = css("--series-2");
   ctx.lineWidth = 2;
   ctx.setLineDash(taut ? [] : [4, 3]);
   ctx.beginPath();
@@ -734,18 +733,20 @@ function drawScene(canvas, fall, f, vp, cfg, { gridStep }) {
   ctx.lineTo(X(rx), Y(hy));
   ctx.stroke();
   ctx.setLineDash([]);
-  // Slackliner as harness and feet points, l_leg apart (true scale)
+  // Slackliner in ink: harness (filled circle) and feet (flat bar), l_leg apart (true scale)
+  const ink = css("--text-primary");
+  const fy = hy - slack.l_leg;
+  ctx.strokeStyle = ink;
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(X(rx), Y(hy));
-  ctx.lineTo(X(rx), Y(hy - slack.l_leg));
+  ctx.lineTo(X(rx), Y(fy));
   ctx.stroke();
-  ctx.fillStyle = color;
-  for (const y of [hy, hy - slack.l_leg]) {
-    ctx.beginPath();
-    ctx.arc(X(rx), Y(y), 3, 0, 2 * Math.PI);
-    ctx.fill();
-  }
+  ctx.fillStyle = ink;
+  ctx.beginPath();
+  ctx.arc(X(rx), Y(hy), 3.5, 0, 2 * Math.PI);
+  ctx.fill();
+  ctx.fillRect(X(rx) - 6, Y(fy) - 1.5, 12, 3); // feet: a small flat bar centred on the feet point
   // ring
   ctx.fillStyle = css("--surface-1");
   ctx.strokeStyle = css("--text-primary");

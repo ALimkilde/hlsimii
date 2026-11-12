@@ -11,7 +11,7 @@
   --error: #c62f2f;
   /* categorical slots, fixed order */
   --series-1: #2a78d6; /* webbing / max tension */
-  --series-2: #eb6834; /* slackliner / leash */
+  --series-2: #7a4fd0; /* leash: chart series and animation */
   --series-3: #1baf7a; /* left anchor */
   --series-4: #eda100; /* right anchor */
   --backup: #f59200; /* webbing edges whose backup carries load */
@@ -30,7 +30,7 @@
     --accent: #3987e5;
     --error: #ff7b7b;
     --series-1: #3987e5;
-    --series-2: #d95926;
+    --series-2: #a183ee;
     --series-3: #199e70;
     --series-4: #c98500;
   --backup: #f0a020;
@@ -49,7 +49,7 @@
   --accent: #3987e5;
   --error: #ff7b7b;
   --series-1: #3987e5;
-  --series-2: #d95926;
+  --series-2: #a183ee;
   --series-3: #199e70;
   --series-4: #c98500;
   --backup: #f0a020;

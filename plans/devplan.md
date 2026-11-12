@@ -200,7 +200,7 @@
 - [X] Make settings for slackliner fit more nicely
 - [X] Make cookies based saves of setups
 - [ ] Add a few examples
-- [ ] Reconfigure zoom
+- [-] Reconfigure zoom
 - [ ] Make a not to scale button? (no axis equal)
 - [ ] Make documentation .pdf available
 - [X] Make a warning about not using this instead of expert knowledge
@@ -208,8 +208,8 @@
 - [X] Make step 0.1 for most settings
 - [ ] Mechanism to reload/restart backend
 - [X] Delete height curve
-- [ ] Move the kv and drag scale to bottom
-- [ ] Visualice harness and legs differently
+- [X] Move the kv and drag scale to bottom
+- [X] Visualice harness and legs differently
 
 ## 19. Bugs
 
