@@ -196,7 +196,8 @@
 
 ## 18. UI
 - [X] Make run button follow header
-- [ ] Move run botton to the left
+- [X] Move run botton to the right
+- [X] Make settings for slackliner fit more nicely
 - [ ] Make cookies based saves of setups
 - [ ] Add a few examples
 - [ ] Reconfigure zoom

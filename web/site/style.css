@@ -101,6 +101,8 @@ input.log-slider { width: 100%; accent-color: var(--accent); }
 #segments { border-collapse: collapse; width: 100%; font-size: 12px; }
 #segments th { text-align: left; font-weight: 500; color: var(--text-muted); padding: 0 2px; }
 #segments td { padding: 2px; }
+/* 4 boxes on one line, even with the panel scrollbar showing */
+fieldset.slackliner input[type=number] { width: 72px; }
 #segments input[type=number] { width: 58px; }
 #segments select { width: 76px; }
 #segments button { padding: 0 6px; }
