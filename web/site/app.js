@@ -181,23 +181,70 @@ $("#add-segment").onclick = () => {
   formChanged();
 };
 
-async function loadExample(name) {
-  yamlBox.value = await fetch(name).then((r) => r.text());
+// Per-viewer storage; can be unavailable (private windows, blocked site data)
+const store = {
+  get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
+  set: (k, v) => { try { localStorage.setItem(k, v); return true; } catch { return false; } },
+  remove: (k) => { try { localStorage.removeItem(k); } catch {} },
+};
+
+// ---------------------------------------------------------------- setups (examples + saved)
+
+// Saved setups are the config YAML by name, kept in this browser: { name: yaml }
+const SETUPS_KEY = "hlsim.setups";
+const SAVED_PREFIX = "saved:"; // option values of saved setups; examples are file names
+const setupSelect = $("#example");
+const savedGroup = $("#saved-setups");
+
+function savedSetups() {
+  try { return JSON.parse(store.get(SETUPS_KEY)) || {}; } catch { return {}; }
+}
+
+function fillSavedSetups(selected) {
+  const setups = savedSetups();
+  savedGroup.replaceChildren(...Object.keys(setups).sort((a, b) => a.localeCompare(b)).map((name) => new Option(name, SAVED_PREFIX + name)));
+  savedGroup.hidden = savedGroup.children.length === 0;
+  if (selected !== undefined) setupSelect.value = SAVED_PREFIX + selected;
+  $("#delete-setup").hidden = !setupSelect.value.startsWith(SAVED_PREFIX);
+}
+
+async function loadSetup(value) {
+  $("#delete-setup").hidden = !value.startsWith(SAVED_PREFIX);
+  yamlBox.value = value.startsWith(SAVED_PREFIX)
+    ? savedSetups()[value.slice(SAVED_PREFIX.length)] ?? ""
+    : await fetch(value).then((r) => r.text());
   const cfg = await call("parse", yamlBox.value);
   if (cfg.error) return showError(cfg.error);
   showError("");
   fillForm(cfg);
 }
-$("#example").onchange = (e) => loadExample(e.target.value);
+setupSelect.onchange = (e) => loadSetup(e.target.value);
+
+$("#save-setup").onclick = () => {
+  const current = setupSelect.value.startsWith(SAVED_PREFIX) ? setupSelect.value.slice(SAVED_PREFIX.length) : "";
+  const name = prompt("Save the current setup as:", current)?.trim();
+  if (!name) return;
+  const setups = savedSetups();
+  if (name in setups && name !== current && !confirm(`Replace the saved setup "${name}"?`)) return;
+  setups[name] = yamlBox.value;
+  if (!store.set(SETUPS_KEY, JSON.stringify(setups)))
+    return alert("Couldn't save: this browser blocks site storage (private window or blocked site data).");
+  fillSavedSetups(name);
+};
+
+$("#delete-setup").onclick = () => {
+  const name = setupSelect.value.slice(SAVED_PREFIX.length);
+  if (!confirm(`Delete the saved setup "${name}"?`)) return;
+  const setups = savedSetups();
+  delete setups[name];
+  store.set(SETUPS_KEY, JSON.stringify(setups));
+  // Back to the first example, so the dropdown names what the form shows
+  setupSelect.selectedIndex = 0;
+  fillSavedSetups();
+  loadSetup(setupSelect.value);
+};
 
 // ---------------------------------------------------------------- webbings tab
-
-// Per-viewer storage; can be unavailable (private windows, blocked site data)
-const store = {
-  get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
-  set: (k, v) => { try { localStorage.setItem(k, v); } catch {} },
-  remove: (k) => { try { localStorage.removeItem(k); } catch {} },
-};
 const WEBBINGS_KEY = "hlsim.webbings";
 const webbingsBox = $("#webbings-yaml");
 const webbingsError = $("#webbings-error");
@@ -945,7 +992,8 @@ else {
     webbingsBox.value = shippedWebbingsYaml;
     await setWebbings(shippedWebbingsYaml, { fillTable: true });
   }
-  await loadExample($("#example").value);
+  fillSavedSetups();
+  await loadSetup(setupSelect.value);
   runButton.disabled = false;
   runButton.textContent = "Run simulation";
 }

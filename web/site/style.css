@@ -118,6 +118,11 @@ fieldset.slackliner input[type=number] { width: 72px; }
 #webbings button { padding: 0 6px; }
 .table-scroll { overflow-x: auto; }
 .row.buttons { display: flex; gap: 6px; flex-wrap: wrap; }
+/* setup picker + its buttons on one line: the dropdown takes the room the buttons leave */
+.row.setups { display: flex; gap: 6px; align-items: flex-end; }
+.row.setups label { flex: 1 1 auto; min-width: 0; }
+.row.setups button { white-space: nowrap; }
+#example { width: 100%; }
 textarea { width: 100%; font: 12px/1.4 ui-monospace, monospace; background: var(--surface-0); border: 1px solid var(--border); border-radius: 4px; padding: 6px; }
 details summary { cursor: pointer; font-weight: 600; font-size: 12px; color: var(--text-secondary); margin: 6px 0; }
 

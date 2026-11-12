@@ -28,14 +28,19 @@
 
     <div id="panel-setup" role="tabpanel" aria-labelledby="tab-setup">
     <section>
-      <div class="row">
-        <label>Example
+      <div class="row setups">
+        <label>Setup
           <select id="example">
-            <option value="110m.yaml">110m.yaml</option>
-            <option value="short_and_static.yaml">short_and_static.yaml</option>
-            <option value="250m.yaml">250m.yaml</option>
+            <optgroup label="Examples">
+              <option value="110m.yaml">110m</option>
+              <option value="short_and_static.yaml">short_and_static</option>
+              <option value="250m.yaml">250m</option>
+            </optgroup>
+            <optgroup label="Saved in this browser" id="saved-setups" hidden></optgroup>
           </select>
         </label>
+        <button type="button" id="save-setup" class="secondary">save current setup</button>
+        <button type="button" id="delete-setup" class="secondary" hidden>delete</button>
       </div>
     </section>
 
