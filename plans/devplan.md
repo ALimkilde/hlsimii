@@ -176,22 +176,22 @@
 
 ## 16. WASM
 
-- [ ] Compile the existing correct implementation to WASM.
-- [ ] Keep the entire integration run inside WASM where possible.
-- [ ] Minimize JavaScript ↔ WASM calls.
-- [ ] Benchmark native C++ and WASM versions.
-- [ ] Enable compiler optimizations.
-- [ ] Investigate WASM SIMD only if profiling justifies it.
+- [X] Compile the existing correct implementation to WASM.
+- [X] Keep the entire integration run inside WASM where possible.
+- [X] Minimize JavaScript ↔ WASM calls.
+- [X] Benchmark native C++ and WASM versions.
+- [X] Enable compiler optimizations.
+- [X] Investigate WASM SIMD only if profiling justifies it.
 - [ ] Verify numerical results against the native/reference implementation.
 
 ## 17. Website integration
 
-- [ ] Define a small, stable WASM API.
-- [ ] Seperate backup and leash falls so they can be runned in parallel
-- [ ] Keep physics/integration state inside WASM.
-- [ ] Transfer only necessary inputs/results across the JS/WASM boundary.
-- [ ] Add visualization separately from the numerical core.
-- [ ] Add performance regression tests for representative simulations.
+- [X] Define a small, stable WASM API.
+- [X] Seperate backup and leash falls so they can be runned in parallel
+- [X] Keep physics/integration state inside WASM.
+- [X] Transfer only necessary inputs/results across the JS/WASM boundary.
+- [X] Add visualization separately from the numerical core.
+- [-] Add performance regression tests for representative simulations.
 - [ ] Write test that web site agrees with hlsim
 
 ## 18. UI
@@ -206,7 +206,7 @@
 - [X] Make a warning about not using this instead of expert knowledge
 - [ ] Rewrite all sentences
 - [X] Make step 0.1 for most settings
-- [ ] Mechanism to reload/restart backend
+- [X] Mechanism to reload/restart backend
 - [X] Delete height curve
 - [X] Move the kv and drag scale to bottom
 - [X] Visualice harness and legs differently
