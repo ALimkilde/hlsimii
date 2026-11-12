@@ -122,7 +122,16 @@ details summary { cursor: pointer; font-weight: 600; font-size: 12px; color: var
 button { cursor: pointer; border-radius: 6px; border: 1px solid var(--accent); background: var(--accent); color: #fff; padding: 6px 14px; }
 button.secondary { background: transparent; color: var(--text-primary); border-color: var(--border); padding: 3px 10px; }
 button:disabled { opacity: 0.6; cursor: progress; }
-.run { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+.run { display: flex; gap: 10px; align-items: center; }
+/* run row + tabs stay at the top of the scrolling left panel; -12px cancels the aside's padding */
+.pinned {
+  position: sticky; top: -12px; z-index: 3;
+  margin: -12px -12px 6px; padding: 12px 12px 0;
+  background: var(--surface-1);
+  border-radius: 8px 8px 0 0;
+}
+.pinned .tabs { margin-bottom: 0; }
+@media (max-width: 900px) { .pinned { top: 0; } }
 #error, .error { color: var(--error); white-space: pre-wrap; font-size: 12px; margin: 8px 0 0; }
 
 #results { display: flex; flex-direction: column; gap: 12px; min-width: 0; }

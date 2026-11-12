@@ -195,7 +195,8 @@
 - [ ] Write test that web site agrees with hlsim
 
 ## 18. UI
-- [ ] Make run button follow header
+- [X] Make run button follow header
+- [ ] Move run botton to the left
 - [ ] Make cookies based saves of setups
 - [ ] Add a few examples
 - [ ] Reconfigure zoom
@@ -204,6 +205,8 @@
 - [ ] Make a warning about not using this instead of expert knowledge
 - [ ] Rewrite all sentences
 - [ ] Make step 0.1 for most settings
+- [ ] Mechanism to reload/restart backend
+- [ ] Delete height curve
 
 ## 19. Validations
 
