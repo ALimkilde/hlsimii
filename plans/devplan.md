@@ -205,9 +205,11 @@
 - [ ] Make documentation .pdf available
 - [X] Make a warning about not using this instead of expert knowledge
 - [ ] Rewrite all sentences
-- [ ] Make step 0.1 for most settings
+- [X] Make step 0.1 for most settings
 - [ ] Mechanism to reload/restart backend
 - [ ] Delete height curve
+- [ ] Move the kv and drag scale to bottom
+- [ ] Visualice harness and legs differently
 
 ## 19. Validations
 

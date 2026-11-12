@@ -105,6 +105,8 @@ input.log-slider { width: 100%; accent-color: var(--accent); }
 #segments td { padding: 2px; }
 /* 4 boxes on one line, even with the panel scrollbar showing */
 fieldset.slackliner input[type=number] { width: 72px; }
+/* fields with a fixed step keep their arrows visible (Chrome hides them until hover) */
+input[type=number][step="0.1"]::-webkit-inner-spin-button { opacity: 1; }
 #segments input[type=number] { width: 58px; }
 #segments select { width: 76px; }
 #segments button { padding: 0 6px; }
