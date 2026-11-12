@@ -198,12 +198,12 @@
 - [X] Make run button follow header
 - [X] Move run botton to the right
 - [X] Make settings for slackliner fit more nicely
-- [ ] Make cookies based saves of setups
+- [X] Make cookies based saves of setups
 - [ ] Add a few examples
 - [ ] Reconfigure zoom
 - [ ] Make a not to scale button? (no axis equal)
 - [ ] Make documentation .pdf available
-- [ ] Make a warning about not using this instead of expert knowledge
+- [X] Make a warning about not using this instead of expert knowledge
 - [ ] Rewrite all sentences
 - [ ] Make step 0.1 for most settings
 - [ ] Mechanism to reload/restart backend
