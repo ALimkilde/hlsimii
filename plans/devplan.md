@@ -214,6 +214,7 @@
 ## 19. Bugs
 
 - [ ] Pull line cannot pull past a segment.
+- [ ] Show impact (from leash taught frame max)? Or mark that it is not impact but max tension shown?
 
 ## 19. Validations
 
