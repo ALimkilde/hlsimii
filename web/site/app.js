@@ -450,9 +450,9 @@ function showResults(result) {
   const forceMax = max(all.map((f) => Math.max(max(f.tensionMax), max(f.leash)))) / 1000;
   const yLo = min(all.map((f) => Math.min(min(f.yHarness), min(f.y))));
   const yHi = max(all.map((f) => Math.max(max(f.yHarness), max(f.y))));
-  const ranges = { force: [0, forceMax * 1.08], height: [yLo - 0.5, yHi + 0.5], yLo, yHi };
+  const ranges = { force: [0, forceMax * 1.08], yLo, yHi };
 
-  for (const f of view.falls) { f.forces.destroy(); f.heights.destroy(); }
+  for (const f of view.falls) f.forces.destroy();
   const container = $("#falls");
   container.replaceChildren();
   view.falls = falls.map(([label, fall]) => {
@@ -465,7 +465,6 @@ function showResults(result) {
       whole: $("canvas.whole", el),
       zoom: $("canvas.zoom", el),
       forces: forceChart($(".forces", el), fall, ranges.force),
-      heights: heightChart($(".heights", el), fall, ranges.height),
       ranges,
     };
   });
@@ -585,53 +584,11 @@ function forceChart(el, fall, range) {
   );
 }
 
-function heightChart(el, fall, range) {
-  const data = [Array.from(fall.time), Array.from(fall.ringY), Array.from(fall.yHarness)];
-  const shade = {
-    hooks: {
-      drawClear: (u) => {
-        // Shade the intervals where the leash is taut
-        const { ctx } = u;
-        ctx.save();
-        ctx.fillStyle = css("--taut");
-        const t = fall.time;
-        for (let i = 0; i < fall.frames; ) {
-          if (!fall.taut[i]) { i++; continue; }
-          let j = i;
-          while (j + 1 < fall.frames && fall.taut[j + 1]) j++;
-          const x0 = u.valToPos(t[Math.max(i - 1, 0)] * 0.5 + t[i] * 0.5, "x", true);
-          const x1 = u.valToPos(t[j] * 0.5 + t[Math.min(j + 1, fall.frames - 1)] * 0.5, "x", true);
-          ctx.fillRect(x0, u.bbox.top, Math.max(x1 - x0, 1), u.bbox.height);
-          i = j + 1;
-        }
-        ctx.restore();
-      },
-    },
-  };
-  return new uPlot(
-    {
-      width: 400, height: 240,
-      scales: { x: { time: false }, y: { range: () => range } },
-      axes: axes("m"),
-      series: [
-        { label: "t [s]", value: (u, v) => (v == null ? "–" : v.toFixed(3)) },
-        seriesStyle("leash ring", css("--series-1"), { value: (u, v) => (v == null ? "–" : v.toFixed(2)) }),
-        seriesStyle("harness", css("--series-2"), { value: (u, v) => (v == null ? "–" : v.toFixed(2)) }),
-      ],
-      plugins: [shade, zeroLinePlugin(), cursorPlugin(), clickToFramePlugin()],
-      cursor: { drag: { x: true, y: false } },
-    },
-    data,
-    el,
-  );
-}
-
 function resizeCharts() {
-  for (const f of view.falls)
-    for (const chart of [f.forces, f.heights]) {
-      const w = chart.root.parentElement.clientWidth;
-      if (w > 0) chart.setSize({ width: w, height: 240 });
-    }
+  for (const f of view.falls) {
+    const w = f.forces.root.parentElement.clientWidth;
+    if (w > 0) f.forces.setSize({ width: w, height: 240 });
+  }
   drawAnimations();
 }
 new ResizeObserver(debounce(resizeCharts, 100)).observe($("#falls"));
@@ -922,12 +879,11 @@ function setFrame(f) {
   $("#time").value = f;
   const t = view.falls[0].fall.time[f];
   $("#time-label").textContent = `t = ${t.toFixed(3)} s`;
-  for (const v of view.falls)
-    for (const u of [v.forces, v.heights]) {
-      // Park the chart cursor on the frame so the legend shows its values
-      if (!u.hovering) u.setCursor({ left: u.valToPos(t, "x"), top: u.valToPos(u.data[1][f], "y") }, false);
-      u.redraw(false);
-    }
+  for (const { forces: u } of view.falls) {
+    // Park the chart cursor on the frame so the legend shows its values
+    if (!u.hovering) u.setCursor({ left: u.valToPos(t, "x"), top: u.valToPos(u.data[1][f], "y") }, false);
+    u.redraw(false);
+  }
   drawAnimations();
 }
 

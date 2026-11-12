@@ -207,7 +207,7 @@
 - [ ] Rewrite all sentences
 - [X] Make step 0.1 for most settings
 - [ ] Mechanism to reload/restart backend
-- [ ] Delete height curve
+- [X] Delete height curve
 - [ ] Move the kv and drag scale to bottom
 - [ ] Visualice harness and legs differently
 

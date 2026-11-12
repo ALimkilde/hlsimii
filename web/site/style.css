@@ -14,7 +14,6 @@
   --series-2: #eb6834; /* slackliner / leash */
   --series-3: #1baf7a; /* left anchor */
   --series-4: #eda100; /* right anchor */
-  --taut: rgba(235, 104, 52, 0.12);
   --backup: #f59200; /* webbing edges whose backup carries load */
   --zero: #8a8983; /* the y = 0 line in charts and animations */
 }
@@ -34,7 +33,6 @@
     --series-2: #d95926;
     --series-3: #199e70;
     --series-4: #c98500;
-    --taut: rgba(217, 89, 38, 0.18);
   --backup: #f0a020;
   --zero: #8f8e86;
   }
@@ -54,7 +52,6 @@
   --series-2: #d95926;
   --series-3: #199e70;
   --series-4: #c98500;
-  --taut: rgba(217, 89, 38, 0.18);
   --backup: #f0a020;
   --zero: #8f8e86;
 }
@@ -137,7 +134,7 @@ button:disabled { opacity: 0.6; cursor: progress; }
    The -12px margins cancel the aside's padding so the row spans the panel edge to edge. */
 .pinned {
   position: sticky; top: -12px; z-index: 3; /* sticks at the panel's padding edge, not inside it */
-  display: flex; align-items: flex-end; justify-content: space-between; gap: 8px;
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 6px;
   margin: -12px -12px 6px; padding: 8px 12px 0;
   background: var(--surface-1);
   border-bottom: 1px solid var(--border);
@@ -145,8 +142,12 @@ button:disabled { opacity: 0.6; cursor: progress; }
 }
 /* the selected tab's underline sits on the row's bottom border */
 .pinned .tabs { border-bottom: 0; margin: 0 0 -1px; }
-.run { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
-.run button { padding: 4px 16px; }
+.run { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; min-width: 0; }
+/* tabs, status and button share ~340px: nothing wraps, a long status is cut with … */
+.run button { padding: 4px 10px; white-space: nowrap; flex: none; }
+#status { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.pinned .tabs { flex: none; }
+.pinned .tabs button { padding: 4px 8px; }
 /* stacked layout: the panel doesn't scroll, so the row sticks to the window top instead */
 @media (max-width: 900px) { .pinned { top: 0; } }
 #error, .error { color: var(--error); white-space: pre-wrap; font-size: 12px; margin: 8px 0 0; }
@@ -163,12 +164,13 @@ button:disabled { opacity: 0.6; cursor: progress; }
 .player input[type=range] { flex: 1; min-width: 160px; accent-color: var(--accent); }
 
 .fall { padding: 12px; }
-.anim, .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.anim { grid-template-columns: 2fr 1fr; margin-bottom: 12px; }
-@media (max-width: 1100px) { .anim, .charts { grid-template-columns: 1fr; } }
+/* whole line across the full width; forces chart and the zoom around the ring side by side below */
+.anim { margin-bottom: 12px; }
+.charts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 1100px) { .charts { grid-template-columns: 1fr; } }
 canvas { width: 100%; display: block; background: var(--surface-1); }
-canvas.whole { height: 220px; }
-canvas.zoom { height: 220px; }
+canvas.whole { height: 260px; }
+canvas.zoom { height: 280px; } /* about the forces chart's height with its legend */
 .key { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: -4px 0 12px; font-size: 12px; color: var(--text-secondary); }
 .key span { display: inline-flex; align-items: center; gap: 5px; }
 .key svg { overflow: visible; }
